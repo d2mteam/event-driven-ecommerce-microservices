@@ -1,0 +1,32 @@
+# Gradle
+**/.gradle/
+**/build/
+**/bin/
+
+# IntelliJ IDEA
+**/.idea/
+*.iml
+*.iws
+*.ipr
+**/out/
+
+# Eclipse / STS
+**/.classpath
+**/.project
+**/.settings/
+**/.apt_generated/
+**/.factorypath
+**/.springBeans
+**/.sts4-cache/
+
+# VS Code
+**/.vscode/
+
+# Operating system
+.DS_Store
+Thumbs.db
+
+# Local environment
+.env
+.env.*
+!.env.example

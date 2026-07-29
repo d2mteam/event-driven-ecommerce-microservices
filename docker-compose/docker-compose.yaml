@@ -1,6 +1,6 @@
 services:
   mariadb:
-    image: mariadb:latest
+    image: mariadb:11.4.10
     container_name: ecommerce_mariadb
     restart: always
     ports:

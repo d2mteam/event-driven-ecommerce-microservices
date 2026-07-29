@@ -6,15 +6,45 @@ spring:
     username: "${DB_USERNAME:app_user}"
     password: "${DB_PASSWORD:password}"
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: update
   kafka:
     bootstrap-servers: "${KAFKA_BOOTSTRAP_SERVERS:localhost:29092,localhost:39092,localhost:49092}"
     admin:
       fail-fast: true
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
     properties:
       request.timeout.ms: 10000
       default.api.timeout.ms: 10000
+
+app:
+  clients:
+    product-base-url: "${PRODUCT_SERVICE_BASE_URL:http://localhost:8081}"
+    inventory-base-url: "${INVENTORY_SERVICE_BASE_URL:http://localhost:8083}"
+    connect-timeout: "${SERVICE_CONNECT_TIMEOUT:2s}"
+    read-timeout: "${SERVICE_READ_TIMEOUT:5s}"
+  kafka:
+    consumer-group-id: "${ORDER_KAFKA_GROUP_ID:order-service}"
+    topics:
+      order-events: "${ORDER_EVENTS_TOPIC:order.events}"
+      inventory-events: "${INVENTORY_EVENTS_TOPIC:inventory.events}"
+    topic:
+      partitions: "${KAFKA_TOPIC_PARTITIONS:3}"
+      replication-factor: "${KAFKA_TOPIC_REPLICATION_FACTOR:3}"
+      min-in-sync-replicas: "${KAFKA_TOPIC_MIN_IN_SYNC_REPLICAS:2}"
+  outbox:
+    initial-delay: "${OUTBOX_RELAY_INITIAL_DELAY:2s}"
+    fixed-delay: "${OUTBOX_RELAY_FIXED_DELAY:1s}"
+    batch-size: "${OUTBOX_RELAY_BATCH_SIZE:50}"
+    send-timeout: "${OUTBOX_RELAY_SEND_TIMEOUT:10s}"
 
 server:
   port: 8082

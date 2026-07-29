@@ -5,9 +5,26 @@ spring:
     url: "${DB_URL:jdbc:mariadb://localhost:3306/ecommerce_db}"
     username: "${DB_USERNAME:app_user}"
     password: "${DB_PASSWORD:password}"
+  kafka:
+    bootstrap-servers: "${KAFKA_BOOTSTRAP_SERVERS:localhost:29092,localhost:39092,localhost:49092}"
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      auto-offset-reset: earliest
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: update
+
+app:
+  messaging:
+    topics:
+      order-events: "${ORDER_EVENTS_TOPIC:order.events}"
+    notification:
+      group-id: "${NOTIFICATION_KAFKA_GROUP_ID:notification-service}"
+  notification:
+    success-message-template: "Đơn hàng %s đã được tạo thành công."
+    failure-message-template: "Đơn hàng %s thất bại vì reservation đã hết hạn (%s)."
 
 server:
   port: 8084

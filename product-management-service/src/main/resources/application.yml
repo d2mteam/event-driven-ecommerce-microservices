@@ -5,6 +5,20 @@ spring:
     url: "${DB_URL:jdbc:mariadb://localhost:3306/ecommerce_db}"
     username: "${DB_USERNAME:app_user}"
     password: "${DB_PASSWORD:password}"
+  cache:
+    type: redis
+    redis:
+      time-to-live: "${PRODUCT_CACHE_TTL:10m}"
+      cache-null-values: false
+      key-prefix: "${PRODUCT_CACHE_KEY_PREFIX:product-service::}"
+  data:
+    redis:
+      host: "${REDIS_HOST:localhost}"
+      port: "${REDIS_PORT:6379}"
+      connect-timeout: "${REDIS_CONNECT_TIMEOUT:2s}"
+      timeout: "${REDIS_TIMEOUT:2s}"
+      repositories:
+        enabled: false
   jpa:
     defer-datasource-initialization: true
     open-in-view: false

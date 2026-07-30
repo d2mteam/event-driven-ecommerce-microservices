@@ -1,5 +1,6 @@
 package com.app.productmanagement.service.impl;
 
+import com.app.productmanagement.config.ProductCacheNames;
 import com.app.productmanagement.dto.PageResponse;
 import com.app.productmanagement.dto.ProductResponse;
 import com.app.productmanagement.entity.Product;
@@ -8,6 +9,7 @@ import com.app.productmanagement.mapper.ProductMapper;
 import com.app.productmanagement.repository.ProductRepository;
 import com.app.productmanagement.service.ProductService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -25,6 +27,10 @@ public class ProductServiceImpl implements ProductService {
     private final ProductMapper productMapper;
 
     @Override
+    @Cacheable(
+            cacheNames = ProductCacheNames.PRODUCT_PAGE,
+            key = ProductCacheNames.PRODUCT_PAGE_KEY
+    )
     public PageResponse<ProductResponse> getProducts(Pageable pageable) {
         Page<ProductResponse> products = productRepository.findAll(pageable)
                 .map(productMapper::toResponse);
@@ -32,6 +38,10 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Cacheable(
+            cacheNames = ProductCacheNames.PRODUCT_DETAIL,
+            key = "#id"
+    )
     public ProductResponse getProduct(Long id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ProductNotFoundException(id));

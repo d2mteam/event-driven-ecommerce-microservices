@@ -43,8 +43,7 @@ public class OrderService {
     public Order create(
             UUID userId,
             UUID orderId,
-            String idempotencyKey,
-            String requestHash,
+            Long idempotencyId,
             List<InventoryReservationItemRequest> requestedItems
     ) {
         List<ProductClientResponse> products = productClient.findProducts(
@@ -69,8 +68,6 @@ public class OrderService {
         Order order = Order.builder()
                 .id(orderId)
                 .userId(userId)
-                .idempotencyKey(idempotencyKey)
-                .requestHash(requestHash)
                 .reservationId(reservation.reservationId())
                 .status(OrderStatus.CONFIRMED)
                 .totalPrice(totalPrice)
@@ -90,7 +87,11 @@ public class OrderService {
                 createdAt
         );
 
-        return persistenceService.save(order, orderCreated);
+        return persistenceService.save(
+                order,
+                orderCreated,
+                idempotencyId
+        );
     }
 
     private Map<Long, ProductClientResponse> indexAndValidateProducts(

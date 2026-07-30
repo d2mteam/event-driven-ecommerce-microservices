@@ -5,6 +5,7 @@ import com.app.order.dto.CreateOrderItemRequest;
 import com.app.order.dto.CreateOrderRequest;
 import com.app.order.dto.OrderResponse;
 import com.app.order.entity.Order;
+import com.app.order.entity.OrderIdempotency;
 import com.app.order.exception.IdempotencyConflictException;
 import com.app.order.exception.InvalidOrderRequestException;
 import com.app.order.mapper.OrderMapper;
@@ -14,7 +15,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.TreeMap;
 import java.util.UUID;
 
@@ -25,8 +25,7 @@ public class IdempotentOrderService {
     private static final int MAX_KEY_LENGTH = 128;
 
     private final OrderService orderService;
-    private final OrderPersistenceService persistenceService;
-    private final OrderRequestHasher requestHasher;
+    private final OrderIdempotencyService idempotencyService;
     private final OrderMapper orderMapper;
 
     public OrderResponse create(
@@ -37,37 +36,31 @@ public class IdempotentOrderService {
         validateIdempotencyKey(idempotencyKey);
         List<InventoryReservationItemRequest> requestedItems =
                 normalizeItems(request.items());
-        String requestHash = requestHasher.hash(requestedItems);
-        Order order = persistenceService
-                .findByIdempotencyKey(userId, idempotencyKey)
-                .orElse(null);
+        OrderIdempotency idempotency;
 
-        if (order == null) {
-            try {
-                order = orderService.create(
-                        userId,
-                        UUID.randomUUID(),
-                        idempotencyKey,
-                        requestHash,
-                        requestedItems
-                );
-            } catch (DataIntegrityViolationException exception) {
-                order = persistenceService
-                        .findByIdempotencyKey(
-                                userId,
-                                idempotencyKey
-                        )
-                        .orElseThrow(() -> exception);
-            }
-        }
-
-        if (!Objects.equals(order.getRequestHash(), requestHash)) {
+        try {
+            idempotency = idempotencyService.create(
+                    userId,
+                    idempotencyKey
+            );
+        } catch (DataIntegrityViolationException exception) {
             throw new IdempotencyConflictException(
-                    "Idempotency-Key was already used for another request"
+                    "Idempotency-Key was already used"
             );
         }
 
-        return orderMapper.toResponse(order);
+        try {
+            Order order = orderService.create(
+                    userId,
+                    UUID.randomUUID(),
+                    idempotency.getId(),
+                    requestedItems
+            );
+            return orderMapper.toResponse(order);
+        } catch (RuntimeException exception) {
+            idempotencyService.fail(idempotency.getId());
+            throw exception;
+        }
     }
 
     private void validateIdempotencyKey(String key) {

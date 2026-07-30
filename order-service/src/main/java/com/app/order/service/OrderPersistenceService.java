@@ -10,7 +10,9 @@ import com.app.order.event.OrderFailedEvent;
 import com.app.order.event.OutboxPayload;
 import com.app.order.event.ReservationExpiredEvent;
 import com.app.order.exception.MessageSerializationException;
+import com.app.order.model.IdempotencyStatus;
 import com.app.order.repository.OrderRepository;
+import com.app.order.repository.OrderIdempotencyRepository;
 import com.app.order.repository.OutboxMessageRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -19,13 +21,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.Optional;
 import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class OrderPersistenceService {
 
     private final OrderRepository orderRepository;
+    private final OrderIdempotencyRepository idempotencyRepository;
     private final OutboxMessageRepository outboxMessageRepository;
     private final ObjectMapper objectMapper;
     private final KafkaMessagingProperties kafkaProperties;
@@ -33,7 +35,8 @@ public class OrderPersistenceService {
     @Transactional
     public Order save(
             Order order,
-            OrderCreatedEvent orderCreated
+            OrderCreatedEvent orderCreated,
+            Long idempotencyId
     ) {
         Order savedOrder = orderRepository.save(order);
         outboxMessageRepository.save(toOutboxMessage(
@@ -41,18 +44,17 @@ public class OrderPersistenceService {
                 orderCreated.orderId().toString(),
                 orderCreated
         ));
-        return savedOrder;
-    }
-
-    @Transactional(readOnly = true)
-    public Optional<Order> findByIdempotencyKey(
-            UUID userId,
-            String idempotencyKey
-    ) {
-        return orderRepository.findByUserIdAndIdempotencyKey(
-                userId,
-                idempotencyKey
+        int updated = idempotencyRepository.changeStatus(
+                idempotencyId,
+                IdempotencyStatus.PROCESSING,
+                IdempotencyStatus.COMPLETED
         );
+        if (updated != 1) {
+            throw new IllegalStateException(
+                    "Idempotency record is not processing"
+            );
+        }
+        return savedOrder;
     }
 
     @Transactional

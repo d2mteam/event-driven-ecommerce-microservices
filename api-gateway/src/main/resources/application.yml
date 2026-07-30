@@ -1,3 +1,30 @@
 spring:
   application:
     name: api-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: product-service
+              uri: "${PRODUCT_SERVICE_URL:http://localhost:8081}"
+              predicates:
+                - Path=/api/products,/api/products/**
+                - Method=GET
+            - id: order-service
+              uri: "${ORDER_SERVICE_URL:http://localhost:8082}"
+              predicates:
+                - Path=/api/orders,/api/orders/**
+                - Method=GET,POST
+          httpclient:
+            connect-timeout: "${GATEWAY_CONNECT_TIMEOUT_MS:2000}"
+            response-timeout: "${GATEWAY_RESPONSE_TIMEOUT:10s}"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+server:
+  port: 8080

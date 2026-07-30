@@ -3,7 +3,7 @@ package com.app.order.controller;
 import com.app.order.api.ApiHeaders;
 import com.app.order.dto.CreateOrderRequest;
 import com.app.order.dto.OrderResponse;
-import com.app.order.service.OrderService;
+import com.app.order.service.IdempotentOrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -23,14 +23,19 @@ public class OrderController {
 
     public static final String ORDERS_PATH = "/api/orders";
 
-    private final OrderService orderService;
+    private final IdempotentOrderService orderService;
 
     @PostMapping
     public ResponseEntity<OrderResponse> create(
             @RequestHeader(ApiHeaders.USER_ID) UUID userId,
+            @RequestHeader(ApiHeaders.IDEMPOTENCY_KEY) String idempotencyKey,
             @Valid @RequestBody CreateOrderRequest request
     ) {
-        OrderResponse response = orderService.create(userId, request);
+        OrderResponse response = orderService.create(
+                userId,
+                idempotencyKey,
+                request
+        );
         return ResponseEntity
                 .created(URI.create(ORDERS_PATH + "/" + response.id()))
                 .body(response);

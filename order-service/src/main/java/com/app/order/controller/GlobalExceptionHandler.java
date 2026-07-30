@@ -3,6 +3,7 @@ package com.app.order.controller;
 import com.app.order.exception.DownstreamServiceException;
 import com.app.order.exception.InvalidOrderRequestException;
 import com.app.order.exception.InventoryConflictException;
+import com.app.order.exception.IdempotencyConflictException;
 import com.app.order.exception.ProductNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -22,6 +23,14 @@ import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(IdempotencyConflictException.class)
+    public ResponseEntity<ApiError> handleIdempotencyConflict(
+            IdempotencyConflictException exception,
+            HttpServletRequest request
+    ) {
+        return response(HttpStatus.CONFLICT, exception.getMessage(), request);
+    }
 
     @ExceptionHandler(InventoryConflictException.class)
     public ResponseEntity<ApiError> handleInventoryConflict(

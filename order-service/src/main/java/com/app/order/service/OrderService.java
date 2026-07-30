@@ -7,15 +7,11 @@ import com.app.order.client.InventoryReservationResponse;
 import com.app.order.client.ProductClient;
 import com.app.order.client.ProductClientResponse;
 import com.app.order.client.ReservationStatus;
-import com.app.order.dto.CreateOrderItemRequest;
-import com.app.order.dto.CreateOrderRequest;
-import com.app.order.dto.OrderResponse;
 import com.app.order.entity.Order;
 import com.app.order.event.EventVersions;
 import com.app.order.event.OrderCreatedEvent;
 import com.app.order.event.OrderEventType;
 import com.app.order.exception.DownstreamServiceException;
-import com.app.order.exception.InvalidOrderRequestException;
 import com.app.order.exception.ProductNotFoundException;
 import com.app.order.mapper.OrderMapper;
 import com.app.order.model.OrderItem;
@@ -44,9 +40,13 @@ public class OrderService {
     private final OrderPersistenceService persistenceService;
     private final OrderMapper orderMapper;
 
-    public OrderResponse create(UUID userId, CreateOrderRequest request) {
-        List<InventoryReservationItemRequest> requestedItems =
-                normalizeItems(request.items());
+    public Order create(
+            UUID userId,
+            UUID orderId,
+            String idempotencyKey,
+            String requestHash,
+            List<InventoryReservationItemRequest> requestedItems
+    ) {
         List<ProductClientResponse> products = productClient.findProducts(
                 requestedItems.stream()
                         .map(InventoryReservationItemRequest::productId)
@@ -59,7 +59,6 @@ public class OrderService {
                 productsById
         );
 
-        UUID orderId = UUID.randomUUID();
         InventoryReservationResponse reservation = inventoryClient.reserve(
                 new InventoryReservationRequest(orderId, requestedItems)
         );
@@ -70,6 +69,8 @@ public class OrderService {
         Order order = Order.builder()
                 .id(orderId)
                 .userId(userId)
+                .idempotencyKey(idempotencyKey)
+                .requestHash(requestHash)
                 .reservationId(reservation.reservationId())
                 .status(OrderStatus.CONFIRMED)
                 .totalPrice(totalPrice)
@@ -89,35 +90,7 @@ public class OrderService {
                 createdAt
         );
 
-        return orderMapper.toResponse(
-                persistenceService.save(order, orderCreated)
-        );
-    }
-
-    private List<InventoryReservationItemRequest> normalizeItems(
-            List<CreateOrderItemRequest> items
-    ) {
-        Map<Long, Integer> quantitiesByProduct = new LinkedHashMap<>();
-        try {
-            for (CreateOrderItemRequest item : items) {
-                quantitiesByProduct.merge(
-                        item.productId(),
-                        item.quantity(),
-                        Math::addExact
-                );
-            }
-        } catch (ArithmeticException exception) {
-            throw new InvalidOrderRequestException(
-                    "The total quantity of a product is too large"
-            );
-        }
-
-        return quantitiesByProduct.entrySet().stream()
-                .map(entry -> new InventoryReservationItemRequest(
-                        entry.getKey(),
-                        entry.getValue()
-                ))
-                .toList();
+        return persistenceService.save(order, orderCreated);
     }
 
     private Map<Long, ProductClientResponse> indexAndValidateProducts(

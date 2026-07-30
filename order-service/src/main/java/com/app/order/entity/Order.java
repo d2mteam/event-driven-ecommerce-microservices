@@ -7,6 +7,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import com.app.order.model.OrderStatus;
 import com.app.order.model.OrderFailureReason;
 import lombok.AllArgsConstructor;
@@ -25,7 +26,13 @@ import java.util.UUID;
 import java.util.Objects;
 
 @Entity
-@Table(name = "orders")
+@Table(
+        name = "orders",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_orders_user_idempotency_key",
+                columnNames = {"user_id", "idempotency_key"}
+        )
+)
 @Getter
 @Setter
 @Builder
@@ -38,6 +45,12 @@ public class Order {
 
     @Column(nullable = false)
     private UUID userId;
+
+    @Column(name = "idempotency_key", length = 128, updatable = false)
+    private String idempotencyKey;
+
+    @Column(name = "request_hash", length = 64, updatable = false)
+    private String requestHash;
 
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal totalPrice;

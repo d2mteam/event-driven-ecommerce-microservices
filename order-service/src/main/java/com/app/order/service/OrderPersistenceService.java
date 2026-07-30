@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 @Service
 @RequiredArgsConstructor
@@ -41,6 +42,17 @@ public class OrderPersistenceService {
                 orderCreated
         ));
         return savedOrder;
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Order> findByIdempotencyKey(
+            UUID userId,
+            String idempotencyKey
+    ) {
+        return orderRepository.findByUserIdAndIdempotencyKey(
+                userId,
+                idempotencyKey
+        );
     }
 
     @Transactional

@@ -4,12 +4,13 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-ORDER_URL="${ORDER_URL:-http://localhost:8082/api/orders}"
+ORDER_URL="${ORDER_URL:-http://localhost:8080/api/orders}"
 PRODUCT_ID_1="${PRODUCT_ID_1:-1}"
 PRODUCT_ID_2="${PRODUCT_ID_2:-2}"
 QTY_1="${QTY_1:-2}"
 QTY_2="${QTY_2:-1}"
 USER_ID="${USER_ID:-11111111-1111-1111-1111-111111111111}"
+IDEMPOTENCY_KEY="${IDEMPOTENCY_KEY:-demo-order-$(date +%s%N)}"
 DB_CONTAINER="${DB_CONTAINER:-ecommerce_mariadb}"
 DB_NAME="${DB_NAME:-ecommerce_db}"
 DB_USER="${DB_USER:-app_user}"
@@ -77,6 +78,7 @@ status="$(curl -sS \
   -X POST "${ORDER_URL}" \
   -H "Content-Type: application/json" \
   -H "X-User-Id: ${USER_ID}" \
+  -H "Idempotency-Key: ${IDEMPOTENCY_KEY}" \
   -d "${request_body}")"
 
 if [ "${status}" != "201" ]; then

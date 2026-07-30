@@ -87,18 +87,23 @@ require_command curl
 require_command lsof
 require_command setsid
 
-"${SCRIPT_DIR}/stop-app-ports.sh" 8081 8082 8083 8084
+"${SCRIPT_DIR}/stop-app-ports.sh" 8080 8081 8082 8083 8084
 
 echo "starting docker infrastructure"
-docker compose -f "${COMPOSE_FILE}" up -d mariadb kafka-1 kafka-2 kafka-3 kafka-console
+docker compose -f "${COMPOSE_FILE}" up -d \
+  mariadb redis redis-insight \
+  kafka-1 kafka-2 kafka-3 kafka-console
 
 start_service "product-management-service" "product-service" 8081 "http://localhost:8081/api/products"
 start_service "inventory-service" "inventory-service" 8083 "http://localhost:8083/internal/inventory/reservations"
 start_service "order-service" "order-service" 8082 "http://localhost:8082/api/orders"
 start_service "notification-service" "notification-service" 8084 "http://localhost:8084"
+start_service "api-gateway" "api-gateway" 8080 "http://localhost:8080/actuator/health"
 
 echo
 echo "stack is ready"
 echo "logs: ${LOG_DIR}"
 echo "pids: ${PID_DIR}"
+echo "api gateway: http://localhost:8080"
 echo "redpanda console: http://localhost:8085"
+echo "redis insight: http://localhost:5540"

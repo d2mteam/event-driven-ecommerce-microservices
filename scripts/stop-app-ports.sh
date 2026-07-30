@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 PORTS=("$@")
 if [ "${#PORTS[@]}" -eq 0 ]; then
-  PORTS=(8081 8082 8083 8084)
+  PORTS=(8080 8081 8082 8083 8084)
 fi
 
 for port in "${PORTS[@]}"; do

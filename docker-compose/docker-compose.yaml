@@ -13,6 +13,34 @@ services:
     volumes:
       - mariadb_data:/var/lib/mysql
 
+  redis:
+    image: redis:7.4-alpine
+    container_name: ecommerce_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-insight:
+    image: redis/redisinsight:3.8.0
+    container_name: redis-insight
+    restart: unless-stopped
+    ports:
+      - "5540:5540"
+    environment:
+      RI_REDIS_HOST: redis
+      RI_REDIS_PORT: 6379
+      RI_REDIS_ALIAS: ecommerce-redis
+    volumes:
+      - redisinsight_data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+
   kafka-1:
     image: apache/kafka:4.3.1
     hostname: kafka-1
@@ -142,6 +170,7 @@ services:
 
 volumes:
   mariadb_data:
+  redisinsight_data:
   kafka_1_data:
   kafka_2_data:
   kafka_3_data:

@@ -91,7 +91,7 @@ require_command setsid
 
 echo "starting docker infrastructure"
 docker compose -f "${COMPOSE_FILE}" up -d \
-  mariadb redis redis-insight \
+  mariadb cloudbeaver redis redis-insight \
   kafka-1 kafka-2 kafka-3 kafka-console
 
 start_service "product-management-service" "product-service" 8081 "http://localhost:8081/api/products"
@@ -107,3 +107,4 @@ echo "pids: ${PID_DIR}"
 echo "api gateway: http://localhost:8080"
 echo "redpanda console: http://localhost:8085"
 echo "redis insight: http://localhost:5540"
+echo "database ui: http://localhost:8978 (admin / admin123)"

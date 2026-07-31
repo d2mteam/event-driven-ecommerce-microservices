@@ -64,16 +64,16 @@ public class OrderPersistenceService {
             return false;
         }
 
-        OrderFailedEvent orderFailed = new OrderFailedEvent(
-                UUID.randomUUID(),
-                EventVersions.ORDER_FAILED,
-                OrderEventType.ORDER_FAILED,
-                order.getId(),
-                order.getUserId(),
-                order.getReservationId(),
-                order.getFailureReason(),
-                Instant.now()
-        );
+        OrderFailedEvent orderFailed = OrderFailedEvent.builder()
+                .messageId(UUID.randomUUID())
+                .eventVersion(EventVersions.ORDER_FAILED)
+                .eventType(OrderEventType.ORDER_FAILED)
+                .orderId(order.getId())
+                .userId(order.getUserId())
+                .reservationId(order.getReservationId())
+                .reason(order.getFailureReason())
+                .occurredAt(Instant.now())
+                .build();
         outboxMessageRepository.save(toOutboxMessage(
                 kafkaProperties.getTopics().getOrderEvents(),
                 order.getId().toString(),

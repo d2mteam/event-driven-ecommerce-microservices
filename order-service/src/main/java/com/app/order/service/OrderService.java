@@ -75,17 +75,17 @@ public class OrderService {
                 .createdAt(createdAt)
                 .build();
 
-        OrderCreatedEvent orderCreated = new OrderCreatedEvent(
-                UUID.randomUUID(),
-                EventVersions.ORDER_CREATED,
-                OrderEventType.ORDER_CREATED,
-                orderId,
-                userId,
-                reservation.reservationId(),
-                totalPrice,
-                orderMapper.toEventItems(orderItems),
-                createdAt
-        );
+        OrderCreatedEvent orderCreated = OrderCreatedEvent.builder()
+                .messageId(UUID.randomUUID())
+                .eventVersion(EventVersions.ORDER_CREATED)
+                .eventType(OrderEventType.ORDER_CREATED)
+                .orderId(orderId)
+                .userId(userId)
+                .reservationId(reservation.reservationId())
+                .totalPrice(totalPrice)
+                .items(orderMapper.toEventItems(orderItems))
+                .occurredAt(createdAt)
+                .build();
 
         return persistenceService.save(
                 order,

@@ -5,6 +5,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import lombok.Builder;
+
+@Builder
 public record OrderCreatedEvent(
         UUID messageId,
         int eventVersion,

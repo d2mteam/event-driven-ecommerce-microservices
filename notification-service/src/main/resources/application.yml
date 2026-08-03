@@ -29,7 +29,7 @@ app:
       multiplier: 2.0
       max-interval: 30s
       dead-letter-topic: "${NOTIFICATION_DLT_TOPIC:order.events.notification-service.DLT}"
-      partitions: 3
+      partitions: "${KAFKA_TOPIC_PARTITIONS:3}"
       replication-factor: 1
   messaging:
     topics:

@@ -8,13 +8,17 @@ import com.app.order.event.EventVersions;
 import com.app.order.event.OrderEventType;
 import com.app.order.event.OrderFailedEvent;
 import com.app.order.event.OutboxPayload;
+import com.app.order.event.PaymentEventType;
 import com.app.order.event.PaymentResultEvent;
 import com.app.order.event.ReservationExpiredEvent;
 import com.app.order.exception.MessageSerializationException;
 import com.app.order.mapper.OrderMapper;
 import com.app.order.model.IdempotencyStatus;
 import com.app.order.model.OrderFailureReason;
+import com.app.order.model.OrderStatus;
 import com.app.order.model.OutboxStatus;
+import com.app.order.model.PaymentResultOutcome;
+import com.app.order.model.ReservationExpirationOutcome;
 import com.app.order.repository.OrderRepository;
 import com.app.order.repository.OrderIdempotencyRepository;
 import com.app.order.repository.OutboxMessageRepository;
@@ -26,6 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 @Slf4j
@@ -60,7 +65,7 @@ public class OrderPersistenceService {
     }
 
     @Transactional
-    public boolean applyPaymentResult(PaymentResultEvent event) {
+    public PaymentResultOutcome applyPaymentResult(PaymentResultEvent event) {
         Order order = orderRepository.findByIdForUpdate(event.orderId())
                 .orElse(null);
         if (order == null) {
@@ -69,7 +74,7 @@ public class OrderPersistenceService {
                     event.messageId(),
                     event.orderId()
             );
-            return false;
+            return PaymentResultOutcome.INVARIANT_VIOLATION;
         }
         if (event.amount() == null
                 || order.getTotalPrice().compareTo(event.amount()) != 0) {
@@ -78,26 +83,61 @@ public class OrderPersistenceService {
                     event.messageId(),
                     event.orderId()
             );
-            return false;
+            return PaymentResultOutcome.INVARIANT_VIOLATION;
         }
 
-        return switch (event.eventType()) {
+        if (event.eventType() == PaymentEventType.PAYMENT_SUCCEEDED
+                && order.getStatus() == OrderStatus.CONFIRMED) {
+            return PaymentResultOutcome.DUPLICATE;
+        }
+
+        OrderFailureReason expectedFailure = switch (event.eventType()) {
+            case PAYMENT_SUCCEEDED -> null;
+            case PAYMENT_FAILED -> OrderFailureReason.PAYMENT_FAILED;
+            case PAYMENT_EXPIRED -> OrderFailureReason.PAYMENT_EXPIRED;
+        };
+        if (expectedFailure != null
+                && order.getStatus() == OrderStatus.FAILED
+                && order.getFailureReason() == expectedFailure) {
+            return PaymentResultOutcome.DUPLICATE;
+        }
+        if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
+            return PaymentResultOutcome.INVARIANT_VIOLATION;
+        }
+
+        boolean changed = switch (event.eventType()) {
             case PAYMENT_SUCCEEDED -> confirmOrder(order);
             case PAYMENT_FAILED -> failOrder(order, OrderFailureReason.PAYMENT_FAILED);
             case PAYMENT_EXPIRED -> failOrder(order, OrderFailureReason.PAYMENT_EXPIRED);
         };
+        return changed
+                ? PaymentResultOutcome.APPLIED
+                : PaymentResultOutcome.INVARIANT_VIOLATION;
     }
 
     @Transactional
-    public boolean failExpiredReservation(ReservationExpiredEvent event) {
+    public ReservationExpirationOutcome failExpiredReservation(
+            ReservationExpiredEvent event
+    ) {
         Order order = orderRepository.findByIdForUpdate(event.orderId())
                 .orElse(null);
-        if (order == null || !order.failExpiredReservation(event.reservationId())) {
-            return false;
+        if (order == null) {
+            return ReservationExpirationOutcome.ORPHAN;
+        }
+        if (!Objects.equals(order.getReservationId(), event.reservationId())) {
+            return ReservationExpirationOutcome.INVARIANT_VIOLATION;
+        }
+        if (order.getStatus() == OrderStatus.FAILED
+                && order.getFailureReason()
+                == OrderFailureReason.RESERVATION_EXPIRED) {
+            return ReservationExpirationOutcome.DUPLICATE;
+        }
+        if (!order.failExpiredReservation(event.reservationId())) {
+            return ReservationExpirationOutcome.INVARIANT_VIOLATION;
         }
 
         saveOrderFailedEvent(order);
-        return true;
+        return ReservationExpirationOutcome.APPLIED;
     }
 
     private boolean confirmOrder(Order order) {

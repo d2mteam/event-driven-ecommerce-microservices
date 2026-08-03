@@ -2,6 +2,7 @@ package com.app.order.messaging;
 
 import com.app.order.event.EventVersions;
 import com.app.order.event.PaymentResultEvent;
+import com.app.order.model.PaymentResultOutcome;
 import com.app.order.service.OrderPersistenceService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -22,36 +23,63 @@ public class PaymentEventListener {
             topics = "${app.kafka.topics.payment-events}",
             groupId = "${app.kafka.consumer-group-id}"
     )
-    public void consume(String payload) throws JsonProcessingException {
-        PaymentResultEvent event = objectMapper.readValue(
-                payload,
-                PaymentResultEvent.class
-        );
+    public void consume(String payload) {
+        PaymentResultEvent event = readEvent(payload);
+        validate(event);
 
-        if (event.eventVersion() != EventVersions.PAYMENT_RESULT
-                || event.eventType() == null) {
-            log.warn(
-                    "Skip unsupported payment event {}",
-                    event.messageId()
+        PaymentResultOutcome outcome =
+                persistenceService.applyPaymentResult(event);
+
+        if (outcome == PaymentResultOutcome.INVARIANT_VIOLATION) {
+            throw invalidEvent(
+                    "Payment event conflicts with order state: "
+                            + event.messageId()
             );
-            return;
         }
-        if (event.messageId() == null
-                || event.paymentId() == null
-                || event.orderId() == null
-                || event.amount() == null
-                || event.occurredAt() == null) {
-            log.warn("Skip incomplete payment event {}", event.messageId());
-            return;
-        }
-
-        boolean changed = persistenceService.applyPaymentResult(event);
-        if (!changed) {
+        if (outcome == PaymentResultOutcome.DUPLICATE) {
             log.debug(
-                    "Payment event {} did not change order {}",
+                    "Payment event {} was already applied to order {}",
                     event.messageId(),
                     event.orderId()
             );
         }
+    }
+
+    private PaymentResultEvent readEvent(String payload) {
+        if (payload == null || payload.isBlank()) {
+            throw invalidEvent("Payment event payload is empty");
+        }
+        try {
+            return objectMapper.readValue(payload, PaymentResultEvent.class);
+        } catch (JsonProcessingException exception) {
+            throw new NonRetryableOrderEventException(
+                    "Malformed payment event JSON",
+                    exception
+            );
+        }
+    }
+
+    private void validate(PaymentResultEvent event) {
+        if (event == null) {
+            throw invalidEvent("Payment event must be a JSON object");
+        }
+        if (event.eventVersion() != EventVersions.PAYMENT_RESULT) {
+            throw invalidEvent(
+                    "Unsupported payment event version: "
+                            + event.eventVersion()
+            );
+        }
+        if (event.messageId() == null
+                || event.eventType() == null
+                || event.paymentId() == null
+                || event.orderId() == null
+                || event.amount() == null
+                || event.occurredAt() == null) {
+            throw invalidEvent("Payment event is missing required fields");
+        }
+    }
+
+    private NonRetryableOrderEventException invalidEvent(String message) {
+        return new NonRetryableOrderEventException(message);
     }
 }

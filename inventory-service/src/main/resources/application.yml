@@ -30,8 +30,19 @@ spring:
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      ack-mode: record
 
 app:
+  kafka:
+    retry:
+      max-attempts: 10
+      initial-interval: 1s
+      multiplier: 2.0
+      max-interval: 30s
+      dead-letter-topic: "${INVENTORY_DLT_TOPIC:order.events.inventory-service.DLT}"
+      partitions: 3
+      replication-factor: 1
   inventory:
     reservation:
       ttl: "${INVENTORY_RESERVATION_TTL:30m}"

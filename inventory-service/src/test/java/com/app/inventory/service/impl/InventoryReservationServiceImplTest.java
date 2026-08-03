@@ -1,12 +1,16 @@
 package com.app.inventory.service.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -16,7 +20,12 @@ import com.app.inventory.entity.Inventory;
 import com.app.inventory.entity.InventoryReservation;
 import com.app.inventory.entity.ReservationItem;
 import com.app.inventory.entity.ReservationStatus;
+import com.app.inventory.exception.InventoryEventConflictException;
 import com.app.inventory.mapper.InventoryReservationMapper;
+import com.app.inventory.messaging.EventVersions;
+import com.app.inventory.messaging.OrderConfirmedEvent;
+import com.app.inventory.messaging.OrderEventType;
+import com.app.inventory.messaging.OrderFailedEvent;
 import com.app.inventory.repository.InventoryRepository;
 import com.app.inventory.repository.InventoryReservationRepository;
 import com.app.inventory.service.InventoryOutboxWriter;
@@ -71,6 +80,69 @@ class InventoryReservationServiceImplTest {
         verify(outboxWriter).addReservationExpired(second);
     }
 
+    @Test
+    void treatsRepeatedConfirmationAsAlreadyApplied() {
+        InventoryReservation reservation = heldReservation(
+                List.of(new ReservationItem(1L, 1))
+        );
+        reservation.settle();
+        OrderConfirmedEvent event = confirmedEvent(reservation.getOrderId());
+        when(reservationRepository.findByIdForUpdate(42L))
+                .thenReturn(Optional.of(reservation));
+
+        service.settleConfirmedOrder(event);
+
+        verifyNoInteractions(inventoryRepository);
+    }
+
+    @Test
+    void treatsRepeatedFailureAsAlreadyApplied() {
+        InventoryReservation reservation = heldReservation(
+                List.of(new ReservationItem(1L, 1))
+        );
+        reservation.release();
+        OrderFailedEvent event = failedEvent(reservation.getOrderId());
+        when(reservationRepository.findByIdForUpdate(42L))
+                .thenReturn(Optional.of(reservation));
+
+        service.releaseFailedOrder(event);
+
+        verifyNoInteractions(inventoryRepository);
+    }
+
+    @Test
+    void rejectsConfirmationAfterReservationWasReleased() {
+        InventoryReservation reservation = heldReservation(
+                List.of(new ReservationItem(1L, 1))
+        );
+        reservation.release();
+        OrderConfirmedEvent event = confirmedEvent(reservation.getOrderId());
+        when(reservationRepository.findByIdForUpdate(42L))
+                .thenReturn(Optional.of(reservation));
+
+        assertThatThrownBy(() -> service.settleConfirmedOrder(event))
+                .isInstanceOf(InventoryEventConflictException.class)
+                .hasMessage("Cannot settle reservation in status RELEASED");
+
+        verifyNoInteractions(inventoryRepository);
+    }
+
+    @Test
+    void rejectsEventForAnotherOrder() {
+        InventoryReservation reservation = heldReservation(
+                List.of(new ReservationItem(1L, 1))
+        );
+        OrderConfirmedEvent event = confirmedEvent(UUID.randomUUID());
+        when(reservationRepository.findByIdForUpdate(42L))
+                .thenReturn(Optional.of(reservation));
+
+        assertThatThrownBy(() -> service.settleConfirmedOrder(event))
+                .isInstanceOf(InventoryEventConflictException.class)
+                .hasMessage("Reservation does not belong to the event order");
+
+        verifyNoInteractions(inventoryRepository);
+    }
+
     private InventoryReservation heldReservation(List<ReservationItem> items) {
         Instant createdAt = Instant.parse("2026-08-04T00:00:00Z");
         return InventoryReservation.held(
@@ -87,5 +159,32 @@ class InventoryReservationServiceImplTest {
                 .onHandQuantity(10)
                 .reservedQuantity(reservedQuantity)
                 .build();
+    }
+
+    private OrderConfirmedEvent confirmedEvent(UUID orderId) {
+        return new OrderConfirmedEvent(
+                UUID.randomUUID(),
+                EventVersions.ORDER_CONFIRMED,
+                OrderEventType.ORDER_CONFIRMED,
+                orderId,
+                UUID.randomUUID(),
+                42L,
+                BigDecimal.TEN,
+                List.of(),
+                Instant.parse("2026-08-04T04:00:00Z")
+        );
+    }
+
+    private OrderFailedEvent failedEvent(UUID orderId) {
+        return new OrderFailedEvent(
+                UUID.randomUUID(),
+                EventVersions.ORDER_FAILED,
+                OrderEventType.ORDER_FAILED,
+                orderId,
+                UUID.randomUUID(),
+                42L,
+                "PAYMENT_FAILED",
+                Instant.parse("2026-08-04T04:00:00Z")
+        );
     }
 }

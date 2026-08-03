@@ -21,6 +21,7 @@ import com.app.inventory.entity.InventoryReservation;
 import com.app.inventory.entity.ReservationItem;
 import com.app.inventory.entity.ReservationStatus;
 import com.app.inventory.exception.InventoryConflictException;
+import com.app.inventory.exception.InventoryEventConflictException;
 import com.app.inventory.mapper.InventoryReservationMapper;
 import com.app.inventory.messaging.OrderConfirmedEvent;
 import com.app.inventory.messaging.OrderFailedEvent;
@@ -110,22 +111,41 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
                 .findByIdForUpdate(event.reservationId())
                 .orElse(null);
 
-        if (reservation == null || !reservation.isHeld()) {
-            return;
+        if (reservation == null) {
+            throw new InventoryEventConflictException(
+                    "Reservation not found: " + event.reservationId()
+            );
         }
         if (!reservation.getOrderId().equals(event.orderId())) {
-            throw new IllegalArgumentException(
+            throw new InventoryEventConflictException(
                     "Reservation does not belong to the event order"
             );
         }
-
-        Map<Long, Inventory> inventoryByProductId =
-                lockInventories(reservation.getItems());
-
-        for (ReservationItem item : reservation.getItems()) {
-            inventoryByProductId.get(item.productId()).settle(item.quantity());
+        if (reservation.getStatus() == ReservationStatus.SETTLED) {
+            return;
         }
-        reservation.settle();
+        if (!reservation.isHeld()) {
+            throw new InventoryEventConflictException(
+                    "Cannot settle reservation in status "
+                            + reservation.getStatus()
+            );
+        }
+
+        try {
+            Map<Long, Inventory> inventoryByProductId =
+                    lockInventories(reservation.getItems());
+
+            for (ReservationItem item : reservation.getItems()) {
+                inventoryByProductId.get(item.productId())
+                        .settle(item.quantity());
+            }
+            reservation.settle();
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            throw new InventoryEventConflictException(
+                    "Cannot settle reservation " + event.reservationId(),
+                    exception
+            );
+        }
     }
 
     @Override
@@ -137,22 +157,41 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
                 .findByIdForUpdate(event.reservationId())
                 .orElse(null);
 
-        if (reservation == null || !reservation.isHeld()) {
-            return;
+        if (reservation == null) {
+            throw new InventoryEventConflictException(
+                    "Reservation not found: " + event.reservationId()
+            );
         }
         if (!reservation.getOrderId().equals(event.orderId())) {
-            throw new IllegalArgumentException(
+            throw new InventoryEventConflictException(
                     "Reservation does not belong to the event order"
             );
         }
-
-        Map<Long, Inventory> inventoryByProductId =
-                lockInventories(reservation.getItems());
-
-        for (ReservationItem item : reservation.getItems()) {
-            inventoryByProductId.get(item.productId()).release(item.quantity());
+        if (reservation.getStatus() == ReservationStatus.RELEASED) {
+            return;
         }
-        reservation.release();
+        if (!reservation.isHeld()) {
+            throw new InventoryEventConflictException(
+                    "Cannot release reservation in status "
+                            + reservation.getStatus()
+            );
+        }
+
+        try {
+            Map<Long, Inventory> inventoryByProductId =
+                    lockInventories(reservation.getItems());
+
+            for (ReservationItem item : reservation.getItems()) {
+                inventoryByProductId.get(item.productId())
+                        .release(item.quantity());
+            }
+            reservation.release();
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            throw new InventoryEventConflictException(
+                    "Cannot release reservation " + event.reservationId(),
+                    exception
+            );
+        }
     }
 
     @Override
@@ -243,7 +282,7 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
             }
         }
         if (!missingProductIds.isEmpty()) {
-            throw new IllegalStateException(
+            throw new InventoryEventConflictException(
                     "Reservation references missing inventories: " + missingProductIds
             );
         }

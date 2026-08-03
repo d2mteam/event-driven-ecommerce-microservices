@@ -4,7 +4,7 @@ import com.app.order.client.ProductClientResponse;
 import com.app.order.dto.OrderItemResponse;
 import com.app.order.dto.OrderResponse;
 import com.app.order.entity.Order;
-import com.app.order.event.OrderCreatedItem;
+import com.app.order.event.OrderConfirmedItem;
 import com.app.order.model.OrderItem;
 import java.util.List;
 import org.mapstruct.Mapper;
@@ -18,9 +18,9 @@ public interface OrderMapper {
 
     OrderItemResponse toItemResponse(OrderItem item);
 
-    List<OrderCreatedItem> toEventItems(List<OrderItem> items);
+    List<OrderConfirmedItem> toEventItems(List<OrderItem> items);
 
-    OrderCreatedItem toEventItem(OrderItem item);
+    OrderConfirmedItem toEventItem(OrderItem item);
 
     @Mapping(target = "productId", source = "product.id")
     @Mapping(target = "productName", source = "product.name")

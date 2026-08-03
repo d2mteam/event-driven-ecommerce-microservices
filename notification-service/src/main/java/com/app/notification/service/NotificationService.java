@@ -2,7 +2,7 @@ package com.app.notification.service;
 
 import com.app.notification.config.NotificationProperties;
 import com.app.notification.entity.Notification;
-import com.app.notification.event.OrderCreatedEvent;
+import com.app.notification.event.OrderConfirmedEvent;
 import com.app.notification.event.OrderFailedEvent;
 import com.app.notification.mapper.NotificationMapper;
 import com.app.notification.repository.NotificationRepository;
@@ -19,7 +19,7 @@ public class NotificationService {
     private final NotificationMapper notificationMapper;
 
     @Transactional
-    public void createFor(OrderCreatedEvent event) {
+    public void createSuccessFor(OrderConfirmedEvent event) {
         if (notificationRepository.existsByOrderId(event.orderId())) {
             return;
         }

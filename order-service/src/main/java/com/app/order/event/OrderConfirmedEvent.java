@@ -8,7 +8,7 @@ import java.util.UUID;
 import lombok.Builder;
 
 @Builder
-public record OrderCreatedEvent(
+public record OrderConfirmedEvent(
         UUID messageId,
         int eventVersion,
         OrderEventType eventType,
@@ -16,7 +16,7 @@ public record OrderCreatedEvent(
         UUID userId,
         Long reservationId,
         BigDecimal totalPrice,
-        List<OrderCreatedItem> items,
+        List<OrderConfirmedItem> items,
         Instant occurredAt
 ) implements OutboxPayload {
 }

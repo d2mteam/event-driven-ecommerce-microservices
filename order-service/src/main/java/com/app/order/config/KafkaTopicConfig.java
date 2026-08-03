@@ -25,6 +25,11 @@ public class KafkaTopicConfig {
         return buildTopic(properties.getTopics().getInventoryEvents());
     }
 
+    @Bean
+    public NewTopic paymentEventsTopic() {
+        return buildTopic(properties.getTopics().getPaymentEvents());
+    }
+
     private NewTopic buildTopic(String name) {
         return TopicBuilder.name(name)
                 .partitions(properties.getTopic().getPartitions())

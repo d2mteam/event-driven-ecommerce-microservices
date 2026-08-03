@@ -5,7 +5,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-public record OrderCreatedEvent(
+public record OrderConfirmedEvent(
         UUID messageId,
         int eventVersion,
         OrderEventType eventType,

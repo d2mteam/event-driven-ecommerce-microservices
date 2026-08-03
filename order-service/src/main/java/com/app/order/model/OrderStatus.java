@@ -1,7 +1,7 @@
 package com.app.order.model;
 
 public enum OrderStatus {
-    CREATED,
+    PENDING_PAYMENT,
     CONFIRMED,
     FAILED
 }

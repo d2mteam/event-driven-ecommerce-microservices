@@ -23,7 +23,8 @@ import com.app.inventory.entity.ReservationItem;
 import com.app.inventory.entity.ReservationStatus;
 import com.app.inventory.exception.InventoryConflictException;
 import com.app.inventory.mapper.InventoryReservationMapper;
-import com.app.inventory.messaging.OrderCreatedEvent;
+import com.app.inventory.messaging.OrderConfirmedEvent;
+import com.app.inventory.messaging.OrderFailedEvent;
 import com.app.inventory.repository.InventoryRepository;
 import com.app.inventory.repository.InventoryReservationRepository;
 import com.app.inventory.service.InventoryReservationService;
@@ -99,7 +100,7 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
 
     @Override
     @Transactional
-    public void settle(OrderCreatedEvent event) {
+    public void settleConfirmedOrder(OrderConfirmedEvent event) {
         event.validate();
 
         InventoryReservation reservation = reservationRepository
@@ -122,6 +123,33 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
             inventoryByProductId.get(item.productId()).settle(item.quantity());
         }
         reservation.settle();
+    }
+
+    @Override
+    @Transactional
+    public void releaseFailedOrder(OrderFailedEvent event) {
+        event.validate();
+
+        InventoryReservation reservation = reservationRepository
+                .findByIdForUpdate(event.reservationId())
+                .orElse(null);
+
+        if (reservation == null || !reservation.isHeld()) {
+            return;
+        }
+        if (!reservation.getOrderId().equals(event.orderId())) {
+            throw new IllegalArgumentException(
+                    "Reservation does not belong to the event order"
+            );
+        }
+
+        Map<Long, Inventory> inventoryByProductId =
+                lockInventories(reservation.getItems());
+
+        for (ReservationItem item : reservation.getItems()) {
+            inventoryByProductId.get(item.productId()).release(item.quantity());
+        }
+        reservation.release();
     }
 
     @Override

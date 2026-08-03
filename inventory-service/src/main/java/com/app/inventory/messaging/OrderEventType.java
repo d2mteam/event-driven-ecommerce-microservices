@@ -1,5 +1,6 @@
 package com.app.inventory.messaging;
 
 public enum OrderEventType {
-    ORDER_CREATED
+    ORDER_CONFIRMED,
+    ORDER_FAILED
 }

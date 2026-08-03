@@ -2,7 +2,7 @@ package com.app.notification.mapper;
 
 import com.app.notification.config.NotificationProperties;
 import com.app.notification.entity.Notification;
-import com.app.notification.event.OrderCreatedEvent;
+import com.app.notification.event.OrderConfirmedEvent;
 import com.app.notification.event.OrderFailedEvent;
 import org.mapstruct.Context;
 import org.mapstruct.Mapper;
@@ -20,7 +20,7 @@ public interface NotificationMapper {
             expression = "java(properties.successMessageTemplate().formatted(event.orderId()))"
     )
     Notification toNotification(
-            OrderCreatedEvent event,
+            OrderConfirmedEvent event,
             @Context NotificationProperties properties
     );
 

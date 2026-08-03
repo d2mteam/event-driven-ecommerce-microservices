@@ -29,6 +29,7 @@ app:
   clients:
     product-base-url: "${PRODUCT_SERVICE_BASE_URL:http://localhost:8081}"
     inventory-base-url: "${INVENTORY_SERVICE_BASE_URL:http://localhost:8083}"
+    payment-base-url: "${PAYMENT_SERVICE_BASE_URL:http://localhost:8086}"
     connect-timeout: "${SERVICE_CONNECT_TIMEOUT:2s}"
     read-timeout: "${SERVICE_READ_TIMEOUT:5s}"
   kafka:
@@ -36,6 +37,7 @@ app:
     topics:
       order-events: "${ORDER_EVENTS_TOPIC:order.events}"
       inventory-events: "${INVENTORY_EVENTS_TOPIC:inventory.events}"
+      payment-events: "${PAYMENT_EVENTS_TOPIC:payment.events}"
     topic:
       partitions: "${KAFKA_TOPIC_PARTITIONS:3}"
       replication-factor: "${KAFKA_TOPIC_REPLICATION_FACTOR:3}"

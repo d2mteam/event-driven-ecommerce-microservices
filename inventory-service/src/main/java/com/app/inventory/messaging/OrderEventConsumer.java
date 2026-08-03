@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 
 import com.app.inventory.service.InventoryReservationService;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
@@ -23,19 +24,42 @@ public class OrderEventConsumer {
             groupId = "${spring.kafka.consumer.group-id}"
     )
     public void consume(String payload) {
-        OrderCreatedEvent event;
+        JsonNode eventJson;
         try {
-            event = objectMapper.readValue(payload, OrderCreatedEvent.class);
+            eventJson = objectMapper.readTree(payload);
         } catch (JsonProcessingException exception) {
             throw new IllegalArgumentException(
-                    "Invalid OrderCreatedEvent payload",
+                    "Invalid order event payload",
                     exception
             );
         }
 
-        if (event.eventVersion() != EventVersions.ORDER_CREATED) {
+        String eventType = eventJson.path("eventType").asText();
+        if (OrderEventType.ORDER_CONFIRMED.name().equals(eventType)) {
+            consumeOrderConfirmed(eventJson);
+            return;
+        }
+        if (OrderEventType.ORDER_FAILED.name().equals(eventType)) {
+            consumeOrderFailed(eventJson);
+            return;
+        }
+        log.debug("Skip order event type {}", eventType);
+    }
+
+    private void consumeOrderConfirmed(JsonNode eventJson) {
+        OrderConfirmedEvent event;
+        try {
+            event = objectMapper.treeToValue(eventJson, OrderConfirmedEvent.class);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalArgumentException(
+                    "Invalid OrderConfirmedEvent payload",
+                    exception
+            );
+        }
+
+        if (event.eventVersion() != EventVersions.ORDER_CONFIRMED) {
             log.warn(
-                    "Skip OrderCreatedEvent {} because version {} is not supported",
+                    "Skip OrderConfirmedEvent {} because version {} is not supported",
                     event.messageId(),
                     event.eventVersion()
             );
@@ -43,12 +67,42 @@ public class OrderEventConsumer {
         }
         if (event.reservationId() == null) {
             log.warn(
-                    "Skip OrderCreatedEvent {} because reservationId is missing",
+                    "Skip OrderConfirmedEvent {} because reservationId is missing",
                     event.messageId()
             );
             return;
         }
 
-        reservationService.settle(event);
+        reservationService.settleConfirmedOrder(event);
+    }
+
+    private void consumeOrderFailed(JsonNode eventJson) {
+        OrderFailedEvent event;
+        try {
+            event = objectMapper.treeToValue(eventJson, OrderFailedEvent.class);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalArgumentException(
+                    "Invalid OrderFailedEvent payload",
+                    exception
+            );
+        }
+
+        if (event.eventVersion() != EventVersions.ORDER_FAILED) {
+            log.warn(
+                    "Skip OrderFailedEvent {} because version {} is not supported",
+                    event.messageId(),
+                    event.eventVersion()
+            );
+            return;
+        }
+        if (event.reservationId() == null) {
+            log.warn(
+                    "Skip OrderFailedEvent {} because reservationId is missing",
+                    event.messageId()
+            );
+            return;
+        }
+
+        reservationService.releaseFailedOrder(event);
     }
 }

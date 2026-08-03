@@ -1,0 +1,43 @@
+spring:
+  application:
+    name: payment-gateway
+  datasource:
+    url: "${DB_URL:jdbc:mariadb://localhost:3306/ecommerce_db}"
+    username: "${DB_USERNAME:app_user}"
+    password: "${DB_PASSWORD:password}"
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+  kafka:
+    bootstrap-servers: "${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}"
+    admin:
+      fail-fast: true
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    properties:
+      request.timeout.ms: 10000
+      default.api.timeout.ms: 10000
+
+app:
+  payment:
+    ttl: "${PAYMENT_TTL:15m}"
+    sweep-delay: "${PAYMENT_SWEEP_DELAY:30s}"
+    public-base-url: "${PAYMENT_PUBLIC_BASE_URL:http://localhost:8080}"
+  messaging:
+    topics:
+      payment-events: "${PAYMENT_EVENTS_TOPIC:payment.events}"
+    topic:
+      partitions: "${KAFKA_TOPIC_PARTITIONS:3}"
+      replication-factor: "${KAFKA_TOPIC_REPLICATION_FACTOR:1}"
+      min-in-sync-replicas: "${KAFKA_TOPIC_MIN_IN_SYNC_REPLICAS:1}"
+  outbox:
+    initial-delay: "${PAYMENT_OUTBOX_INITIAL_DELAY:2s}"
+    fixed-delay: "${PAYMENT_OUTBOX_FIXED_DELAY:1s}"
+    batch-size: "${PAYMENT_OUTBOX_BATCH_SIZE:50}"
+    send-timeout: "${PAYMENT_OUTBOX_SEND_TIMEOUT:10s}"
+
+server:
+  port: 8086

@@ -10,6 +10,7 @@ public class RestClientConfig {
 
     public static final String PRODUCT_REST_CLIENT = "productRestClient";
     public static final String INVENTORY_REST_CLIENT = "inventoryRestClient";
+    public static final String PAYMENT_REST_CLIENT = "paymentRestClient";
 
     @Bean(PRODUCT_REST_CLIENT)
     public RestClient productRestClient(
@@ -31,6 +32,18 @@ public class RestClientConfig {
         return buildClient(
                 builder,
                 properties.getInventoryBaseUrl(),
+                properties
+        );
+    }
+
+    @Bean(PAYMENT_REST_CLIENT)
+    public RestClient paymentRestClient(
+            RestClient.Builder builder,
+            ClientProperties properties
+    ) {
+        return buildClient(
+                builder,
+                properties.getPaymentBaseUrl(),
                 properties
         );
     }

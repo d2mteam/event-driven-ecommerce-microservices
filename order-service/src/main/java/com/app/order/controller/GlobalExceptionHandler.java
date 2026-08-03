@@ -5,6 +5,8 @@ import com.app.order.exception.InvalidOrderRequestException;
 import com.app.order.exception.InventoryConflictException;
 import com.app.order.exception.IdempotencyConflictException;
 import com.app.order.exception.ProductNotFoundException;
+import com.app.order.exception.OrderNotFoundException;
+import com.app.order.exception.OrderStateConflictException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
@@ -23,6 +25,22 @@ import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(OrderNotFoundException.class)
+    public ResponseEntity<ApiError> handleOrderNotFound(
+            OrderNotFoundException exception,
+            HttpServletRequest request
+    ) {
+        return response(HttpStatus.NOT_FOUND, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(OrderStateConflictException.class)
+    public ResponseEntity<ApiError> handleOrderStateConflict(
+            OrderStateConflictException exception,
+            HttpServletRequest request
+    ) {
+        return response(HttpStatus.CONFLICT, exception.getMessage(), request);
+    }
 
     @ExceptionHandler(IdempotencyConflictException.class)
     public ResponseEntity<ApiError> handleIdempotencyConflict(

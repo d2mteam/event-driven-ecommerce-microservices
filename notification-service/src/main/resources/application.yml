@@ -23,8 +23,8 @@ app:
     notification:
       group-id: "${NOTIFICATION_KAFKA_GROUP_ID:notification-service}"
   notification:
-    success-message-template: "Đơn hàng %s đã được tạo thành công."
-    failure-message-template: "Đơn hàng %s thất bại vì reservation đã hết hạn (%s)."
+    success-message-template: "Đơn hàng %s đã được xác nhận thành công."
+    failure-message-template: "Đơn hàng %s thất bại (%s)."
 
 server:
   port: 8084

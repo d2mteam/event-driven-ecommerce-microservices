@@ -21,6 +21,9 @@ public class ClientProperties {
     @NotBlank
     private String inventoryBaseUrl;
 
+    @NotBlank
+    private String paymentBaseUrl;
+
     @NotNull
     private Duration connectTimeout;
 

@@ -8,9 +8,6 @@ import com.app.order.client.ProductClient;
 import com.app.order.client.ProductClientResponse;
 import com.app.order.client.ReservationStatus;
 import com.app.order.entity.Order;
-import com.app.order.event.EventVersions;
-import com.app.order.event.OrderCreatedEvent;
-import com.app.order.event.OrderEventType;
 import com.app.order.exception.DownstreamServiceException;
 import com.app.order.exception.ProductNotFoundException;
 import com.app.order.mapper.OrderMapper;
@@ -69,27 +66,14 @@ public class OrderService {
                 .id(orderId)
                 .userId(userId)
                 .reservationId(reservation.reservationId())
-                .status(OrderStatus.CONFIRMED)
+                .status(OrderStatus.PENDING_PAYMENT)
                 .totalPrice(totalPrice)
                 .items(orderItems)
                 .createdAt(createdAt)
                 .build();
 
-        OrderCreatedEvent orderCreated = OrderCreatedEvent.builder()
-                .messageId(UUID.randomUUID())
-                .eventVersion(EventVersions.ORDER_CREATED)
-                .eventType(OrderEventType.ORDER_CREATED)
-                .orderId(orderId)
-                .userId(userId)
-                .reservationId(reservation.reservationId())
-                .totalPrice(totalPrice)
-                .items(orderMapper.toEventItems(orderItems))
-                .occurredAt(createdAt)
-                .build();
-
         return persistenceService.save(
                 order,
-                orderCreated,
                 idempotencyId
         );
     }

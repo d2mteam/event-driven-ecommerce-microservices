@@ -35,6 +35,9 @@ public class KafkaMessagingProperties {
 
         @NotBlank
         private String inventoryEvents;
+
+        @NotBlank
+        private String paymentEvents;
     }
 
     @Getter

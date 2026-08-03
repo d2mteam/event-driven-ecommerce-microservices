@@ -68,11 +68,32 @@ public class Order {
     @Column(nullable = false, columnDefinition = "json")
     private List<OrderItem> items = new ArrayList<>();
 
+    public boolean confirmPayment() {
+        if (status != OrderStatus.PENDING_PAYMENT) {
+            return false;
+        }
+
+        status = OrderStatus.CONFIRMED;
+        failureReason = null;
+        return true;
+    }
+
+    public boolean failPayment(OrderFailureReason reason) {
+        if (status != OrderStatus.PENDING_PAYMENT) {
+            return false;
+        }
+
+        status = OrderStatus.FAILED;
+        failureReason = reason;
+        return true;
+    }
+
     public boolean failExpiredReservation(Long expiredReservationId) {
         if (!Objects.equals(reservationId, expiredReservationId)) {
             return false;
         }
-        if (status != OrderStatus.CONFIRMED && status != OrderStatus.CREATED) {
+        if (status != OrderStatus.PENDING_PAYMENT
+                && status != OrderStatus.CONFIRMED) {
             return false;
         }
 

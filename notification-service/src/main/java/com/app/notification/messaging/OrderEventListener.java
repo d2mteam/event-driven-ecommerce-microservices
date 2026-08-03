@@ -1,7 +1,7 @@
 package com.app.notification.messaging;
 
 import com.app.notification.event.EventVersions;
-import com.app.notification.event.OrderCreatedEvent;
+import com.app.notification.event.OrderConfirmedEvent;
 import com.app.notification.event.OrderEventType;
 import com.app.notification.event.OrderFailedEvent;
 import com.app.notification.service.NotificationService;
@@ -29,8 +29,8 @@ public class OrderEventListener {
                 .path("eventType")
                 .asText();
 
-        if (OrderEventType.ORDER_CREATED.name().equals(eventType)) {
-            consumeOrderCreated(payload);
+        if (OrderEventType.ORDER_CONFIRMED.name().equals(eventType)) {
+            consumeOrderConfirmed(payload);
             return;
         }
         if (OrderEventType.ORDER_FAILED.name().equals(eventType)) {
@@ -40,19 +40,19 @@ public class OrderEventListener {
         log.warn("Skip unknown order event type {}", eventType);
     }
 
-    private void consumeOrderCreated(String payload)
+    private void consumeOrderConfirmed(String payload)
             throws JsonProcessingException {
-        OrderCreatedEvent event =
-                objectMapper.readValue(payload, OrderCreatedEvent.class);
-        if (event.eventVersion() != EventVersions.ORDER_CREATED) {
+        OrderConfirmedEvent event =
+                objectMapper.readValue(payload, OrderConfirmedEvent.class);
+        if (event.eventVersion() != EventVersions.ORDER_CONFIRMED) {
             log.warn(
-                    "Skip OrderCreatedEvent {} because version {} is not supported",
+                    "Skip OrderConfirmedEvent {} because version {} is not supported",
                     event.messageId(),
                     event.eventVersion()
             );
             return;
         }
-        notificationService.createFor(event);
+        notificationService.createSuccessFor(event);
     }
 
     private void consumeOrderFailed(String payload)

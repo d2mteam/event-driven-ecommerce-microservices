@@ -16,6 +16,11 @@ spring:
               predicates:
                 - Path=/api/orders,/api/orders/**
                 - Method=GET,POST
+            - id: payment-service
+              uri: "${PAYMENT_SERVICE_URL:http://localhost:8086}"
+              predicates:
+                - Path=/api/payments,/api/payments/**
+                - Method=GET,POST
           httpclient:
             connect-timeout: "${GATEWAY_CONNECT_TIMEOUT_MS:2000}"
             response-timeout: "${GATEWAY_RESPONSE_TIMEOUT:10s}"

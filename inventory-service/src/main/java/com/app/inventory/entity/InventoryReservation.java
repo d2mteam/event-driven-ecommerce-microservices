@@ -81,6 +81,12 @@ public class InventoryReservation {
         }
     }
 
+    public void release() {
+        if (isHeld()) {
+            status = ReservationStatus.RELEASED;
+        }
+    }
+
     public void expire(UUID eventId) {
         if (isHeld()) {
             status = ReservationStatus.EXPIRED;

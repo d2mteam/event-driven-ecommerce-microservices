@@ -14,6 +14,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -21,7 +22,13 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "inventory_reservations")
+@Table(
+        name = "inventory_reservations",
+        indexes = @Index(
+                name = "idx_inventory_reservations_expiry",
+                columnList = "status, expires_at, id"
+        )
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
@@ -42,7 +49,7 @@ public class InventoryReservation {
     @Column(nullable = false, columnDefinition = "varchar(32)")
     private ReservationStatus status;
 
-    @Column(nullable = false)
+    @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
     @Column(nullable = false, updatable = false)

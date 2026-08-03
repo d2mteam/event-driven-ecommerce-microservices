@@ -32,6 +32,8 @@ app:
     reservation:
       ttl: "${INVENTORY_RESERVATION_TTL:30m}"
       sweep-delay: "${INVENTORY_RESERVATION_SWEEP_DELAY:30s}"
+      batch-size: "${INVENTORY_RESERVATION_BATCH_SIZE:50}"
+      max-batches-per-run: "${INVENTORY_RESERVATION_MAX_BATCHES_PER_RUN:10}"
       event-relay-delay: "${INVENTORY_EVENT_RELAY_DELAY:1s}"
       event-relay-batch-size: "${INVENTORY_EVENT_RELAY_BATCH_SIZE:50}"
       event-send-timeout: "${INVENTORY_EVENT_SEND_TIMEOUT:10s}"

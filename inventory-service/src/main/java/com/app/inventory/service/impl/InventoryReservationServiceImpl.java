@@ -30,9 +30,11 @@ import com.app.inventory.repository.InventoryReservationRepository;
 import com.app.inventory.service.InventoryReservationService;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class InventoryReservationServiceImpl implements InventoryReservationService {
 
     private final InventoryRepository inventoryRepository;
@@ -153,39 +155,49 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
     }
 
     @Override
-    @Transactional
-    public int releaseExpiredReservations() {
+    public int releaseExpiredReservations(Instant expiresAt, int batchSize) {
         List<InventoryReservation> reservations =
                 reservationRepository.findExpiredForUpdate(
-                        ReservationStatus.HELD,
-                        Instant.now()
+                        ReservationStatus.HELD.name(),
+                        expiresAt,
+                        batchSize
                 );
 
         if (reservations.isEmpty()) {
             return 0;
         }
 
-        Map<Long, Integer> quantitiesByProductId = new TreeMap<>();
-        for (InventoryReservation reservation : reservations) {
-            for (ReservationItem item : reservation.getItems()) {
-                quantitiesByProductId.merge(
-                        item.productId(),
-                        item.quantity(),
-                        Math::addExact
-                );
+        try {
+            Map<Long, Integer> quantitiesByProductId = new TreeMap<>();
+            for (InventoryReservation reservation : reservations) {
+                for (ReservationItem item : reservation.getItems()) {
+                    quantitiesByProductId.merge(
+                            item.productId(),
+                            item.quantity(),
+                            Math::addExact
+                    );
+                }
             }
-        }
 
-        List<ReservationItem> aggregatedItems = quantitiesByProductId.entrySet().stream()
-                .map(entry -> new ReservationItem(entry.getKey(), entry.getValue()))
-                .toList();
-        Map<Long, Inventory> inventoryByProductId = lockInventories(aggregatedItems);
+            List<ReservationItem> aggregatedItems = quantitiesByProductId.entrySet().stream()
+                    .map(entry -> new ReservationItem(entry.getKey(), entry.getValue()))
+                    .toList();
+            Map<Long, Inventory> inventoryByProductId = lockInventories(aggregatedItems);
 
-        for (ReservationItem item : aggregatedItems) {
-            inventoryByProductId.get(item.productId()).release(item.quantity());
-        }
-        for (InventoryReservation reservation : reservations) {
-            reservation.expire(UUID.randomUUID());
+            for (ReservationItem item : aggregatedItems) {
+                inventoryByProductId.get(item.productId()).release(item.quantity());
+            }
+            for (InventoryReservation reservation : reservations) {
+                reservation.expire(UUID.randomUUID());
+            }
+        } catch (RuntimeException exception) {
+            log.error(
+                    "Inventory expiration batch failed cutoff={} reservationIds={}",
+                    expiresAt,
+                    reservations.stream().map(InventoryReservation::getId).toList(),
+                    exception
+            );
+            throw exception;
         }
 
         return reservations.size();

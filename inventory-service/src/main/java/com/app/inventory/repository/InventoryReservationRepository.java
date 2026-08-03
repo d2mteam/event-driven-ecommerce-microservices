@@ -6,10 +6,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Lock;
 
 import com.app.inventory.entity.InventoryReservation;
 import com.app.inventory.entity.ReservationStatus;
@@ -24,17 +24,19 @@ public interface InventoryReservationRepository extends JpaRepository<InventoryR
     @Query("select reservation from InventoryReservation reservation where reservation.id = :id")
     Optional<InventoryReservation> findByIdForUpdate(@Param("id") Long id);
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("""
-            select reservation
-            from InventoryReservation reservation
-            where reservation.status = :status
-              and reservation.expiresAt <= :expiresAt
-            order by reservation.id
-            """)
+    @Query(value = """
+            select *
+            from inventory_reservations
+            where status = :status
+              and expires_at <= :expiresAt
+            order by expires_at, id
+            limit :batchSize
+            for update skip locked
+            """, nativeQuery = true)
     List<InventoryReservation> findExpiredForUpdate(
-            @Param("status") ReservationStatus status,
-            @Param("expiresAt") Instant expiresAt
+            @Param("status") String status,
+            @Param("expiresAt") Instant expiresAt,
+            @Param("batchSize") int batchSize
     );
 
     List<InventoryReservation>

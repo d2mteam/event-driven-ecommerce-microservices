@@ -1,5 +1,7 @@
 package com.app.inventory.service;
 
+import java.time.Instant;
+
 import com.app.inventory.dto.CreateReservationRequest;
 import com.app.inventory.dto.ReservationResponse;
 import com.app.inventory.messaging.OrderConfirmedEvent;
@@ -13,5 +15,5 @@ public interface InventoryReservationService {
 
     void releaseFailedOrder(OrderFailedEvent event);
 
-    int releaseExpiredReservations();
+    int releaseExpiredReservations(Instant expiresAt, int batchSize);
 }

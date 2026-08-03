@@ -29,7 +29,7 @@ import java.util.UUID;
         ),
         indexes = @Index(
                 name = "idx_payments_pending_expiry",
-                columnList = "status, expires_at"
+                columnList = "status, expires_at, id"
         )
 )
 @Getter

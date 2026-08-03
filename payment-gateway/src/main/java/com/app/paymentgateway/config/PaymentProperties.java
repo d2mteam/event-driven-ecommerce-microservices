@@ -1,5 +1,6 @@
 package com.app.paymentgateway.config;
 
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -12,6 +13,8 @@ import java.time.Duration;
 public record PaymentProperties(
         @NotNull Duration ttl,
         @NotNull Duration sweepDelay,
-        @NotBlank String publicBaseUrl
+        @NotBlank String publicBaseUrl,
+        @Min(1) int sweepBatchSize,
+        @Min(1) int maxSweepBatchesPerRun
 ) {
 }

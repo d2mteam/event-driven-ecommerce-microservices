@@ -26,6 +26,8 @@ app:
     ttl: "${PAYMENT_TTL:15m}"
     sweep-delay: "${PAYMENT_SWEEP_DELAY:30s}"
     public-base-url: "${PAYMENT_PUBLIC_BASE_URL:http://localhost:8080}"
+    sweep-batch-size: "${PAYMENT_SWEEP_BATCH_SIZE:50}"
+    max-sweep-batches-per-run: "${PAYMENT_MAX_SWEEP_BATCHES_PER_RUN:10}"
   messaging:
     topics:
       payment-events: "${PAYMENT_EVENTS_TOPIC:payment.events}"

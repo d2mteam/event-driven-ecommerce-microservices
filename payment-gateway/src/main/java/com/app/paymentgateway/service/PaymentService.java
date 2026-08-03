@@ -19,6 +19,7 @@ import com.app.paymentgateway.repository.PaymentRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +32,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PaymentService {
 
     private static final String PAYMENT_PATH = "/api/payments/";
@@ -101,22 +103,34 @@ public class PaymentService {
         return toResponse(payment);
     }
 
-    @Transactional
-    public int expirePendingPayments() {
-        Instant expiredAt = Instant.now();
+    public int expirePendingPaymentsBatch(Instant expiredAt, int batchSize) {
         List<Payment> payments = paymentRepository.findExpiredForUpdate(
-                PaymentStatus.PENDING,
-                expiredAt
+                PaymentStatus.PENDING.name(),
+                expiredAt,
+                batchSize
         );
 
-        for (Payment payment : payments) {
-            if (payment.expire(expiredAt)) {
-                saveResultEvent(
-                        payment,
-                        PaymentEventType.PAYMENT_EXPIRED,
-                        expiredAt
-                );
+        try {
+            for (Payment payment : payments) {
+                if (payment.expire(expiredAt)) {
+                    saveResultEvent(
+                            payment,
+                            PaymentEventType.PAYMENT_EXPIRED,
+                            expiredAt
+                    );
+                }
             }
+        } catch (RuntimeException exception) {
+            List<Long> claimedPaymentIds = payments.stream()
+                    .map(Payment::getId)
+                    .toList();
+            log.error(
+                    "Payment expiration batch failed cutoff={} paymentIds={}",
+                    expiredAt,
+                    claimedPaymentIds,
+                    exception
+            );
+            throw exception;
         }
         return payments.size();
     }

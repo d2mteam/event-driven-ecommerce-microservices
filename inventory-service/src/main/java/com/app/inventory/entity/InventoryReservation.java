@@ -55,11 +55,6 @@ public class InventoryReservation {
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
-    @Column(unique = true)
-    private UUID expirationEventId;
-
-    private Instant expirationEventPublishedAt;
-
     public static InventoryReservation held(
             UUID orderId,
             List<ReservationItem> items,
@@ -72,9 +67,7 @@ public class InventoryReservation {
                 List.copyOf(items),
                 ReservationStatus.HELD,
                 expiresAt,
-                createdAt,
-                null,
-                null
+                createdAt
         );
     }
 
@@ -94,14 +87,9 @@ public class InventoryReservation {
         }
     }
 
-    public void expire(UUID eventId) {
+    public void expire() {
         if (isHeld()) {
             status = ReservationStatus.EXPIRED;
-            expirationEventId = eventId;
         }
-    }
-
-    public void markExpirationEventPublished(Instant publishedAt) {
-        expirationEventPublishedAt = publishedAt;
     }
 }

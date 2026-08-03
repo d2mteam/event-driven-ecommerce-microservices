@@ -6,7 +6,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -27,6 +26,7 @@ import com.app.inventory.messaging.OrderConfirmedEvent;
 import com.app.inventory.messaging.OrderFailedEvent;
 import com.app.inventory.repository.InventoryRepository;
 import com.app.inventory.repository.InventoryReservationRepository;
+import com.app.inventory.service.InventoryOutboxWriter;
 import com.app.inventory.service.InventoryReservationService;
 
 import lombok.RequiredArgsConstructor;
@@ -41,6 +41,7 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
     private final InventoryReservationRepository reservationRepository;
     private final InventoryReservationProperties properties;
     private final InventoryReservationMapper reservationMapper;
+    private final InventoryOutboxWriter outboxWriter;
 
     @Override
     @Transactional
@@ -188,7 +189,8 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
                 inventoryByProductId.get(item.productId()).release(item.quantity());
             }
             for (InventoryReservation reservation : reservations) {
-                reservation.expire(UUID.randomUUID());
+                reservation.expire();
+                outboxWriter.addReservationExpired(reservation);
             }
         } catch (RuntimeException exception) {
             log.error(

@@ -15,6 +15,10 @@ spring:
   sql:
     init:
       mode: always
+  task:
+    scheduling:
+      pool:
+        size: 2
   kafka:
     bootstrap-servers: "${KAFKA_BOOTSTRAP_SERVERS:localhost:29092,localhost:39092,localhost:49092}"
     producer:
@@ -34,9 +38,16 @@ app:
       sweep-delay: "${INVENTORY_RESERVATION_SWEEP_DELAY:30s}"
       batch-size: "${INVENTORY_RESERVATION_BATCH_SIZE:50}"
       max-batches-per-run: "${INVENTORY_RESERVATION_MAX_BATCHES_PER_RUN:10}"
-      event-relay-delay: "${INVENTORY_EVENT_RELAY_DELAY:1s}"
-      event-relay-batch-size: "${INVENTORY_EVENT_RELAY_BATCH_SIZE:50}"
-      event-send-timeout: "${INVENTORY_EVENT_SEND_TIMEOUT:10s}"
+    outbox:
+      initial-delay: "${INVENTORY_OUTBOX_INITIAL_DELAY:2s}"
+      fixed-delay: "${INVENTORY_OUTBOX_FIXED_DELAY:1s}"
+      batch-size: "${INVENTORY_OUTBOX_BATCH_SIZE:50}"
+      send-timeout: "${INVENTORY_OUTBOX_SEND_TIMEOUT:10s}"
+      lease-duration: "${INVENTORY_OUTBOX_LEASE_DURATION:10m}"
+      retry-initial-delay: "${INVENTORY_OUTBOX_RETRY_INITIAL_DELAY:1s}"
+      retry-multiplier: "${INVENTORY_OUTBOX_RETRY_MULTIPLIER:2.0}"
+      retry-max-delay: "${INVENTORY_OUTBOX_RETRY_MAX_DELAY:60s}"
+      alert-after-attempts: "${INVENTORY_OUTBOX_ALERT_AFTER_ATTEMPTS:10}"
   messaging:
     topics:
       order-events: "${ORDER_EVENTS_TOPIC:order.events}"

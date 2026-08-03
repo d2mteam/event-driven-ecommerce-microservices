@@ -19,6 +19,7 @@ import com.app.inventory.entity.ReservationStatus;
 import com.app.inventory.mapper.InventoryReservationMapper;
 import com.app.inventory.repository.InventoryRepository;
 import com.app.inventory.repository.InventoryReservationRepository;
+import com.app.inventory.service.InventoryOutboxWriter;
 
 class InventoryReservationServiceImplTest {
 
@@ -26,13 +27,16 @@ class InventoryReservationServiceImplTest {
             mock(InventoryRepository.class);
     private final InventoryReservationRepository reservationRepository =
             mock(InventoryReservationRepository.class);
+    private final InventoryOutboxWriter outboxWriter =
+            mock(InventoryOutboxWriter.class);
 
     private final InventoryReservationServiceImpl service =
             new InventoryReservationServiceImpl(
                     inventoryRepository,
                     reservationRepository,
                     mock(InventoryReservationProperties.class),
-                    mock(InventoryReservationMapper.class)
+                    mock(InventoryReservationMapper.class),
+                    outboxWriter
             );
 
     @Test
@@ -63,6 +67,8 @@ class InventoryReservationServiceImplTest {
         assertThat(first.getStatus()).isEqualTo(ReservationStatus.EXPIRED);
         assertThat(second.getStatus()).isEqualTo(ReservationStatus.EXPIRED);
         verify(inventoryRepository).findAllByProductIdForUpdate(List.of(1L, 2L));
+        verify(outboxWriter).addReservationExpired(first);
+        verify(outboxWriter).addReservationExpired(second);
     }
 
     private InventoryReservation heldReservation(List<ReservationItem> items) {

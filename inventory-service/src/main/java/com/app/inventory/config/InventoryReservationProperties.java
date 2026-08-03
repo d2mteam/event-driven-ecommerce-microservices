@@ -15,9 +15,6 @@ public record InventoryReservationProperties(
         @Min(1)
         int batchSize,
         @Min(1)
-        int maxBatchesPerRun,
-        Duration eventRelayDelay,
-        int eventRelayBatchSize,
-        Duration eventSendTimeout
+        int maxBatchesPerRun
 ) {
 }

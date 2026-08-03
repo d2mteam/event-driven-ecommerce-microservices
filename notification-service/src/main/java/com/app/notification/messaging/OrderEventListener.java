@@ -6,13 +6,12 @@ import com.app.notification.event.OrderEventType;
 import com.app.notification.event.OrderFailedEvent;
 import com.app.notification.service.NotificationService;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class OrderEventListener {
@@ -24,49 +23,113 @@ public class OrderEventListener {
             topics = "${app.messaging.topics.order-events}",
             groupId = "${app.messaging.notification.group-id}"
     )
-    public void consume(String payload) throws JsonProcessingException {
-        String eventType = objectMapper.readTree(payload)
-                .path("eventType")
-                .asText();
+    public void consume(String payload) {
+        JsonNode eventJson = readEvent(payload);
+        String eventType = requiredText(eventJson, "eventType");
 
         if (OrderEventType.ORDER_CONFIRMED.name().equals(eventType)) {
-            consumeOrderConfirmed(payload);
+            consumeOrderConfirmed(eventJson);
             return;
         }
         if (OrderEventType.ORDER_FAILED.name().equals(eventType)) {
-            consumeOrderFailed(payload);
+            consumeOrderFailed(eventJson);
             return;
         }
-        log.warn("Skip unknown order event type {}", eventType);
+        throw invalidEvent("Unknown order event type: " + eventType);
     }
 
-    private void consumeOrderConfirmed(String payload)
-            throws JsonProcessingException {
-        OrderConfirmedEvent event =
-                objectMapper.readValue(payload, OrderConfirmedEvent.class);
+    private void consumeOrderConfirmed(JsonNode eventJson) {
+        requireFields(
+                eventJson,
+                "messageId",
+                "eventVersion",
+                "orderId",
+                "userId",
+                "reservationId",
+                "totalPrice",
+                "items",
+                "occurredAt"
+        );
+        OrderConfirmedEvent event = readEvent(
+                eventJson,
+                OrderConfirmedEvent.class
+        );
         if (event.eventVersion() != EventVersions.ORDER_CONFIRMED) {
-            log.warn(
-                    "Skip OrderConfirmedEvent {} because version {} is not supported",
-                    event.messageId(),
-                    event.eventVersion()
+            throw invalidEvent(
+                    "Unsupported OrderConfirmedEvent version: "
+                            + event.eventVersion()
             );
-            return;
         }
         notificationService.createSuccessFor(event);
     }
 
-    private void consumeOrderFailed(String payload)
-            throws JsonProcessingException {
-        OrderFailedEvent event =
-                objectMapper.readValue(payload, OrderFailedEvent.class);
+    private void consumeOrderFailed(JsonNode eventJson) {
+        requireFields(
+                eventJson,
+                "messageId",
+                "eventVersion",
+                "orderId",
+                "userId",
+                "reservationId",
+                "reason",
+                "occurredAt"
+        );
+        OrderFailedEvent event = readEvent(eventJson, OrderFailedEvent.class);
         if (event.eventVersion() != EventVersions.ORDER_FAILED) {
-            log.warn(
-                    "Skip OrderFailedEvent {} because version {} is not supported",
-                    event.messageId(),
-                    event.eventVersion()
+            throw invalidEvent(
+                    "Unsupported OrderFailedEvent version: "
+                            + event.eventVersion()
             );
-            return;
         }
         notificationService.replaceWithFailure(event);
+    }
+
+    private JsonNode readEvent(String payload) {
+        if (payload == null) {
+            throw invalidEvent("Order event payload is null");
+        }
+        try {
+            return objectMapper.readTree(payload);
+        } catch (JsonProcessingException exception) {
+            throw new NonRetryableOrderEventException(
+                    "Malformed order event JSON",
+                    exception
+            );
+        }
+    }
+
+    private <T> T readEvent(JsonNode eventJson, Class<T> eventType) {
+        try {
+            return objectMapper.treeToValue(eventJson, eventType);
+        } catch (JsonProcessingException exception) {
+            throw new NonRetryableOrderEventException(
+                    "Invalid " + eventType.getSimpleName(),
+                    exception
+            );
+        }
+    }
+
+    private String requiredText(JsonNode eventJson, String field) {
+        requireFields(eventJson, field);
+        String value = eventJson.get(field).asText();
+        if (value.isBlank()) {
+            throw invalidEvent("Required field is blank: " + field);
+        }
+        return value;
+    }
+
+    private void requireFields(JsonNode eventJson, String... fields) {
+        if (eventJson == null || !eventJson.isObject()) {
+            throw invalidEvent("Order event must be a JSON object");
+        }
+        for (String field : fields) {
+            if (!eventJson.hasNonNull(field)) {
+                throw invalidEvent("Missing required field: " + field);
+            }
+        }
+    }
+
+    private NonRetryableOrderEventException invalidEvent(String message) {
+        return new NonRetryableOrderEventException(message);
     }
 }

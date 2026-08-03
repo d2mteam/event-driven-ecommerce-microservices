@@ -11,12 +11,26 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       auto-offset-reset: earliest
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    listener:
+      ack-mode: record
   jpa:
     open-in-view: false
     hibernate:
       ddl-auto: update
 
 app:
+  kafka:
+    retry:
+      max-attempts: 10
+      initial-interval: 1s
+      multiplier: 2.0
+      max-interval: 30s
+      dead-letter-topic: "${NOTIFICATION_DLT_TOPIC:order.events.notification-service.DLT}"
+      partitions: 3
+      replication-factor: 1
   messaging:
     topics:
       order-events: "${ORDER_EVENTS_TOPIC:order.events}"

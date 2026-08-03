@@ -5,34 +5,27 @@ import com.app.order.model.IdempotencyStatus;
 import com.app.order.repository.OrderIdempotencyRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class OrderIdempotencyService {
+public class IdempotencyClaimService {
 
     private final OrderIdempotencyRepository repository;
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public OrderIdempotency create(
-            UUID userId,
-            String idempotencyKey
-    ) {
-        return repository.saveAndFlush(
-                OrderIdempotency.processing(
-                        userId,
-                        idempotencyKey
-                )
+    @Transactional
+    public OrderIdempotency claim(UUID userId, String idempotencyKey) {
+        return repository.save(
+                OrderIdempotency.processing(userId, idempotencyKey)
         );
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void fail(Long id) {
+    @Transactional
+    public void markFailed(Long claimId) {
         repository.changeStatus(
-                id,
+                claimId,
                 IdempotencyStatus.PROCESSING,
                 IdempotencyStatus.FAILED
         );

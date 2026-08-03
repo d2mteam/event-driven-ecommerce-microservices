@@ -32,7 +32,7 @@ public class OrderController {
 
     public static final String ORDERS_PATH = "/api/orders";
 
-    private final IdempotentOrderService orderService;
+    private final IdempotentOrderService idempotentOrderService;
     private final OrderQueryService orderQueryService;
     private final OrderPaymentService orderPaymentService;
 
@@ -63,7 +63,7 @@ public class OrderController {
             @RequestHeader(ApiHeaders.IDEMPOTENCY_KEY) String idempotencyKey,
             @Valid @RequestBody CreateOrderRequest request
     ) {
-        OrderResponse response = orderService.create(
+        OrderResponse response = idempotentOrderService.create(
                 userId,
                 idempotencyKey,
                 request

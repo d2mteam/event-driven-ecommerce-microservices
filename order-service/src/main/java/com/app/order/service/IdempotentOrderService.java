@@ -1,7 +1,5 @@
 package com.app.order.service;
 
-import com.app.order.client.InventoryReservationItemRequest;
-import com.app.order.dto.CreateOrderItemRequest;
 import com.app.order.dto.CreateOrderRequest;
 import com.app.order.dto.OrderResponse;
 import com.app.order.entity.Order;
@@ -13,19 +11,17 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class IdempotentOrderService {
 
-    private static final int MAX_KEY_LENGTH = 128;
+    private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 128;
 
     private final OrderService orderService;
-    private final OrderIdempotencyService idempotencyService;
+    private final IdempotencyClaimService claimService;
+    private final OrderPersistenceService persistenceService;
     private final OrderMapper orderMapper;
 
     public OrderResponse create(
@@ -34,15 +30,10 @@ public class IdempotentOrderService {
             CreateOrderRequest request
     ) {
         validateIdempotencyKey(idempotencyKey);
-        List<InventoryReservationItemRequest> requestedItems =
-                normalizeItems(request.items());
-        OrderIdempotency idempotency;
 
+        OrderIdempotency claim;
         try {
-            idempotency = idempotencyService.create(
-                    userId,
-                    idempotencyKey
-            );
+            claim = claimService.claim(userId, idempotencyKey);
         } catch (DataIntegrityViolationException exception) {
             throw new IdempotencyConflictException(
                     "Idempotency-Key was already used"
@@ -50,52 +41,25 @@ public class IdempotentOrderService {
         }
 
         try {
-            Order order = orderService.create(
-                    userId,
-                    UUID.randomUUID(),
-                    idempotency.getId(),
-                    requestedItems
+            Order order = orderService.createPendingOrder(userId, request);
+            Order savedOrder = persistenceService.saveOrderAndCompleteClaim(
+                    order,
+                    claim.getId()
             );
-            return orderMapper.toResponse(order);
+            return orderMapper.toResponse(savedOrder);
         } catch (RuntimeException exception) {
-            idempotencyService.fail(idempotency.getId());
+            claimService.markFailed(claim.getId());
             throw exception;
         }
     }
 
     private void validateIdempotencyKey(String key) {
-        if (key.isBlank() || key.length() > MAX_KEY_LENGTH) {
+        if (key.isBlank() || key.length() > MAX_IDEMPOTENCY_KEY_LENGTH) {
             throw new InvalidOrderRequestException(
                     "Idempotency-Key must contain 1 to "
-                            + MAX_KEY_LENGTH
+                            + MAX_IDEMPOTENCY_KEY_LENGTH
                             + " characters"
             );
         }
-    }
-
-    private List<InventoryReservationItemRequest> normalizeItems(
-            List<CreateOrderItemRequest> items
-    ) {
-        Map<Long, Integer> quantitiesByProduct = new TreeMap<>();
-        try {
-            for (CreateOrderItemRequest item : items) {
-                quantitiesByProduct.merge(
-                        item.productId(),
-                        item.quantity(),
-                        Math::addExact
-                );
-            }
-        } catch (ArithmeticException exception) {
-            throw new InvalidOrderRequestException(
-                    "The total quantity of a product is too large"
-            );
-        }
-
-        return quantitiesByProduct.entrySet().stream()
-                .map(entry -> new InventoryReservationItemRequest(
-                        entry.getKey(),
-                        entry.getValue()
-                ))
-                .toList();
     }
 }

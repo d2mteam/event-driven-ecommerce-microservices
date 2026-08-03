@@ -40,13 +40,13 @@ public class OrderPersistenceService {
     private final OrderMapper orderMapper;
 
     @Transactional
-    public Order save(
+    public Order saveOrderAndCompleteClaim(
             Order order,
-            Long idempotencyId
+            Long claimId
     ) {
         Order savedOrder = orderRepository.save(order);
         int updated = idempotencyRepository.changeStatus(
-                idempotencyId,
+                claimId,
                 IdempotencyStatus.PROCESSING,
                 IdempotencyStatus.COMPLETED
         );

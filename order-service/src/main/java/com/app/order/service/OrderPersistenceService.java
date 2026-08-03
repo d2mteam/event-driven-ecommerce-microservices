@@ -14,6 +14,7 @@ import com.app.order.exception.MessageSerializationException;
 import com.app.order.mapper.OrderMapper;
 import com.app.order.model.IdempotencyStatus;
 import com.app.order.model.OrderFailureReason;
+import com.app.order.model.OutboxStatus;
 import com.app.order.repository.OrderRepository;
 import com.app.order.repository.OrderIdempotencyRepository;
 import com.app.order.repository.OutboxMessageRepository;
@@ -159,13 +160,17 @@ public class OrderPersistenceService {
             String key,
             OutboxPayload message
     ) {
+        Instant createdAt = Instant.now();
         return OutboxMessage.builder()
                 .messageId(message.messageId())
                 .topic(topic)
                 .key(key)
                 .type(message.getClass().getSimpleName())
                 .payload(serialize(message))
-                .createdAt(Instant.now())
+                .createdAt(createdAt)
+                .status(OutboxStatus.PENDING)
+                .attemptCount(0)
+                .nextAttemptAt(createdAt)
                 .build();
     }
 

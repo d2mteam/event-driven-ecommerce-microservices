@@ -47,6 +47,11 @@ app:
     fixed-delay: "${OUTBOX_RELAY_FIXED_DELAY:1s}"
     batch-size: "${OUTBOX_RELAY_BATCH_SIZE:50}"
     send-timeout: "${OUTBOX_RELAY_SEND_TIMEOUT:10s}"
+    lease-duration: "${OUTBOX_RELAY_LEASE_DURATION:10m}"
+    retry-initial-delay: "${OUTBOX_RELAY_RETRY_INITIAL_DELAY:1s}"
+    retry-multiplier: "${OUTBOX_RELAY_RETRY_MULTIPLIER:2.0}"
+    retry-max-delay: "${OUTBOX_RELAY_RETRY_MAX_DELAY:60s}"
+    alert-after-attempts: "${OUTBOX_RELAY_ALERT_AFTER_ATTEMPTS:10}"
 
 server:
   port: 8082

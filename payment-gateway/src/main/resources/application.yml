@@ -20,6 +20,10 @@ spring:
     properties:
       request.timeout.ms: 10000
       default.api.timeout.ms: 10000
+  task:
+    scheduling:
+      pool:
+        size: 2
 
 app:
   payment:
@@ -40,6 +44,11 @@ app:
     fixed-delay: "${PAYMENT_OUTBOX_FIXED_DELAY:1s}"
     batch-size: "${PAYMENT_OUTBOX_BATCH_SIZE:50}"
     send-timeout: "${PAYMENT_OUTBOX_SEND_TIMEOUT:10s}"
+    lease-duration: "${PAYMENT_OUTBOX_LEASE_DURATION:10m}"
+    retry-initial-delay: "${PAYMENT_OUTBOX_RETRY_INITIAL_DELAY:1s}"
+    retry-multiplier: "${PAYMENT_OUTBOX_RETRY_MULTIPLIER:2.0}"
+    retry-max-delay: "${PAYMENT_OUTBOX_RETRY_MAX_DELAY:60s}"
+    alert-after-attempts: "${PAYMENT_OUTBOX_ALERT_AFTER_ATTEMPTS:10}"
 
 server:
   port: 8086

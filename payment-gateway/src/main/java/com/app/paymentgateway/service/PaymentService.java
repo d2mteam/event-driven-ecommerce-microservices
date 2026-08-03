@@ -13,6 +13,7 @@ import com.app.paymentgateway.event.PaymentResultEvent;
 import com.app.paymentgateway.exception.PaymentConflictException;
 import com.app.paymentgateway.exception.PaymentNotFoundException;
 import com.app.paymentgateway.model.MockPaymentResult;
+import com.app.paymentgateway.model.PaymentOutboxStatus;
 import com.app.paymentgateway.model.PaymentStatus;
 import com.app.paymentgateway.repository.PaymentOutboxMessageRepository;
 import com.app.paymentgateway.repository.PaymentRepository;
@@ -198,6 +199,9 @@ public class PaymentService {
                 .type(event.eventType().name())
                 .payload(serialize(event))
                 .createdAt(occurredAt)
+                .status(PaymentOutboxStatus.PENDING)
+                .attemptCount(0)
+                .nextAttemptAt(occurredAt)
                 .build());
     }
 

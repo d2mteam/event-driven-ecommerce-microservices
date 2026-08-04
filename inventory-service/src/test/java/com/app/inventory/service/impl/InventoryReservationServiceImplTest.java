@@ -29,6 +29,7 @@ import com.app.inventory.messaging.OrderFailedEvent;
 import com.app.inventory.repository.InventoryRepository;
 import com.app.inventory.repository.InventoryReservationRepository;
 import com.app.inventory.service.InventoryOutboxWriter;
+import com.app.inventory.service.InventoryStockFilter;
 
 class InventoryReservationServiceImplTest {
 
@@ -45,7 +46,8 @@ class InventoryReservationServiceImplTest {
                     reservationRepository,
                     mock(InventoryReservationProperties.class),
                     mock(InventoryReservationMapper.class),
-                    outboxWriter
+                    outboxWriter,
+                    InventoryStockFilter.disabled()
             );
 
     @Test

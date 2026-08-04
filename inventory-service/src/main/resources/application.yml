@@ -15,6 +15,14 @@ spring:
   sql:
     init:
       mode: always
+  data:
+    redis:
+      host: "${REDIS_HOST:localhost}"
+      port: "${REDIS_PORT:6379}"
+      connect-timeout: "${REDIS_CONNECT_TIMEOUT:1s}"
+      timeout: "${REDIS_TIMEOUT:1s}"
+      repositories:
+        enabled: false
   task:
     scheduling:
       pool:
@@ -49,6 +57,14 @@ app:
       sweep-delay: "${INVENTORY_RESERVATION_SWEEP_DELAY:30s}"
       batch-size: "${INVENTORY_RESERVATION_BATCH_SIZE:50}"
       max-batches-per-run: "${INVENTORY_RESERVATION_MAX_BATCHES_PER_RUN:10}"
+    # Bộ lọc tồn kho đặt trước luồng DB (cache-aside trên Redis).
+    # Mặc định TẮT: tắt thì reserve chạy y hệt như khi chưa có tính năng này.
+    # Bật để giảm tải DB khi có hot key (flash sale). Không ảnh hưởng tính đúng
+    # đắn ở bất kỳ trạng thái nào của Redis — xem InventoryStockFilter.
+    stock-filter:
+      enabled: "${INVENTORY_STOCK_FILTER_ENABLED:false}"
+      ttl: "${INVENTORY_STOCK_FILTER_TTL:60s}"
+      key-prefix: "${INVENTORY_STOCK_FILTER_KEY_PREFIX:inv:avail:}"
     outbox:
       initial-delay: "${INVENTORY_OUTBOX_INITIAL_DELAY:2s}"
       fixed-delay: "${INVENTORY_OUTBOX_FIXED_DELAY:1s}"

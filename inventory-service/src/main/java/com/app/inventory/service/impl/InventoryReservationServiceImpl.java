@@ -29,6 +29,7 @@ import com.app.inventory.repository.InventoryRepository;
 import com.app.inventory.repository.InventoryReservationRepository;
 import com.app.inventory.service.InventoryOutboxWriter;
 import com.app.inventory.service.InventoryReservationService;
+import com.app.inventory.service.InventoryStockFilter;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +44,7 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
     private final InventoryReservationProperties properties;
     private final InventoryReservationMapper reservationMapper;
     private final InventoryOutboxWriter outboxWriter;
+    private final InventoryStockFilter stockFilter;
 
     @Override
     @Transactional
@@ -57,6 +59,10 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
         List<Long> productIds = items.stream()
                 .map(ReservationItem::productId)
                 .toList();
+
+        // Đặt SAU bước tra findByOrderId ở trên: retry của một đơn đã giữ hàng
+        // thành công phải trả về reservation cũ, không được rơi vào bộ lọc.
+        stockFilter.rejectIfKnownInsufficient(items);
 
         List<Inventory> lockedInventories =
                 inventoryRepository.findAllByProductIdForUpdate(productIds);
@@ -90,6 +96,7 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
         for (ReservationItem item : items) {
             inventoryByProductId.get(item.productId()).reserve(item.quantity());
         }
+        stockFilter.refreshAfterCommit(availabilitySnapshot(inventoryByProductId));
 
         Instant createdAt = Instant.now();
         InventoryReservation reservation = InventoryReservation.held(
@@ -139,6 +146,7 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
                 inventoryByProductId.get(item.productId())
                         .settle(item.quantity());
             }
+            stockFilter.refreshAfterCommit(availabilitySnapshot(inventoryByProductId));
             reservation.settle();
         } catch (IllegalArgumentException | IllegalStateException exception) {
             throw new InventoryEventConflictException(
@@ -185,6 +193,7 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
                 inventoryByProductId.get(item.productId())
                         .release(item.quantity());
             }
+            stockFilter.refreshAfterCommit(availabilitySnapshot(inventoryByProductId));
             reservation.release();
         } catch (IllegalArgumentException | IllegalStateException exception) {
             throw new InventoryEventConflictException(
@@ -227,6 +236,7 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
             for (ReservationItem item : aggregatedItems) {
                 inventoryByProductId.get(item.productId()).release(item.quantity());
             }
+            stockFilter.refreshAfterCommit(availabilitySnapshot(inventoryByProductId));
             for (InventoryReservation reservation : reservations) {
                 reservation.expire();
                 outboxWriter.addReservationExpired(reservation);
@@ -242,6 +252,21 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
         }
 
         return reservations.size();
+    }
+
+    /**
+     * Chụp lượng còn bán được sau khi đã áp dụng thay đổi lên entity.
+     *
+     * <p>Giá trị lấy từ entity đang bị khoá trong transaction hiện tại, nên nó
+     * đúng bằng giá trị sẽ được commit. Bộ lọc chỉ ghi ra Redis sau khi commit.
+     */
+    private Map<Long, Integer> availabilitySnapshot(
+            Map<Long, Inventory> inventoryByProductId
+    ) {
+        Map<Long, Integer> snapshot = new LinkedHashMap<>();
+        inventoryByProductId.forEach((productId, inventory) ->
+                snapshot.put(productId, inventory.availableQuantity()));
+        return snapshot;
     }
 
     private List<ReservationItem> normalize(List<ReservationItemRequest> requestedItems) {

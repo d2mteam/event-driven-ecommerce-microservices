@@ -36,7 +36,9 @@ import com.app.inventory.entity.ReservationItem;
 import com.app.inventory.entity.ReservationStatus;
 import com.app.inventory.mapper.InventoryReservationMapper;
 import com.app.inventory.service.InventoryOutboxWriter;
+import com.app.inventory.config.InventoryStockFilterProperties;
 import com.app.inventory.service.InventoryStockFilter;
+import com.app.inventory.service.ReservationItemNormalizer;
 import com.app.inventory.service.impl.InventoryReservationServiceImpl;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 
@@ -91,7 +93,8 @@ class ExpiredReservationRepositoryIntegrationTest {
                 mock(InventoryReservationProperties.class),
                 mock(InventoryReservationMapper.class),
                 outboxWriter,
-                InventoryStockFilter.disabled()
+                new InventoryStockFilter(null, new InventoryStockFilterProperties()),
+                new ReservationItemNormalizer()
         );
     }
 

@@ -14,7 +14,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.app.inventory.config.InventoryReservationProperties;
 import com.app.inventory.dto.CreateReservationRequest;
-import com.app.inventory.dto.ReservationItemRequest;
 import com.app.inventory.dto.ReservationResponse;
 import com.app.inventory.entity.Inventory;
 import com.app.inventory.entity.InventoryReservation;
@@ -29,6 +28,7 @@ import com.app.inventory.repository.InventoryRepository;
 import com.app.inventory.repository.InventoryReservationRepository;
 import com.app.inventory.service.InventoryOutboxWriter;
 import com.app.inventory.service.InventoryReservationService;
+import com.app.inventory.service.ReservationItemNormalizer;
 import com.app.inventory.service.InventoryStockFilter;
 
 import lombok.RequiredArgsConstructor;
@@ -45,6 +45,7 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
     private final InventoryReservationMapper reservationMapper;
     private final InventoryOutboxWriter outboxWriter;
     private final InventoryStockFilter stockFilter;
+    private final ReservationItemNormalizer itemNormalizer;
 
     @Override
     @Transactional
@@ -55,7 +56,7 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
             return reservationMapper.toResponse(existing);
         }
 
-        List<ReservationItem> items = normalize(request.items());
+        List<ReservationItem> items = itemNormalizer.normalize(request.items());
         List<Long> productIds = items.stream()
                 .map(ReservationItem::productId)
                 .toList();
@@ -267,21 +268,6 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
         inventoryByProductId.forEach((productId, inventory) ->
                 snapshot.put(productId, inventory.availableQuantity()));
         return snapshot;
-    }
-
-    private List<ReservationItem> normalize(List<ReservationItemRequest> requestedItems) {
-        Map<Long, Integer> quantityByProductId = new TreeMap<>();
-        for (ReservationItemRequest item : requestedItems) {
-            quantityByProductId.merge(
-                    item.productId(),
-                    item.quantity(),
-                    Math::addExact
-            );
-        }
-
-        return quantityByProductId.entrySet().stream()
-                .map(entry -> new ReservationItem(entry.getKey(), entry.getValue()))
-                .toList();
     }
 
     private Map<Long, Inventory> lockInventories(List<ReservationItem> items) {

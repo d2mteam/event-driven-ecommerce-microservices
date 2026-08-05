@@ -96,9 +96,13 @@ class OrderEventListenerTest {
         ObjectNode eventJson = objectMapper.valueToTree(confirmedEvent());
         eventJson.remove("orderId");
 
+        // Compact constructor của record chặn ngay lúc deserialize, nên lỗi
+        // đi ra dưới dạng lỗi JSON. Điều cần giữ là: không retry, không gọi service.
         assertThatThrownBy(() -> listener.consume(eventJson.toString()))
                 .isInstanceOf(NonRetryableOrderEventException.class)
-                .hasMessage("Missing required field: orderId");
+                .hasRootCauseInstanceOf(IllegalArgumentException.class)
+                .rootCause()
+                .hasMessageContaining("OrderConfirmedEvent is missing required fields");
 
         verifyNoInteractions(notificationService);
     }

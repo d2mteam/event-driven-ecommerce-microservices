@@ -59,23 +59,14 @@ public class PaymentEventListener {
         }
     }
 
+    /** Field bắt buộc do compact constructor của record lo. Ở đây chỉ xét
+     *  tương thích phiên bản — v2 không phải sai, chỉ là consumer chưa hiểu. */
     private void validate(PaymentResultEvent event) {
-        if (event == null) {
-            throw invalidEvent("Payment event must be a JSON object");
-        }
         if (event.eventVersion() != EventVersions.PAYMENT_RESULT) {
             throw invalidEvent(
                     "Unsupported payment event version: "
                             + event.eventVersion()
             );
-        }
-        if (event.messageId() == null
-                || event.eventType() == null
-                || event.paymentId() == null
-                || event.orderId() == null
-                || event.amount() == null
-                || event.occurredAt() == null) {
-            throw invalidEvent("Payment event is missing required fields");
         }
     }
 

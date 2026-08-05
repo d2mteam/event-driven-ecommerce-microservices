@@ -113,8 +113,6 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
     @Override
     @Transactional
     public void settleConfirmedOrder(OrderConfirmedEvent event) {
-        event.validate();
-
         InventoryReservation reservation = reservationRepository
                 .findByIdForUpdate(event.reservationId())
                 .orElse(null);
@@ -160,8 +158,6 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
     @Override
     @Transactional
     public void releaseFailedOrder(OrderFailedEvent event) {
-        event.validate();
-
         InventoryReservation reservation = reservationRepository
                 .findByIdForUpdate(event.reservationId())
                 .orElse(null);

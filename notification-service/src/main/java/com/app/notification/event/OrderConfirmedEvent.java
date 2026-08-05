@@ -16,4 +16,20 @@ public record OrderConfirmedEvent(
         List<OrderItem> items,
         Instant occurredAt
 ) {
+
+    /** Chạy cả khi Jackson deserialize, nên không tạo được instance sai. */
+    public OrderConfirmedEvent {
+        if (messageId == null
+                || eventType != OrderEventType.ORDER_CONFIRMED
+                || orderId == null
+                || userId == null
+                || reservationId == null
+                || totalPrice == null
+                || items == null
+                || occurredAt == null) {
+            throw new IllegalArgumentException(
+                    "OrderConfirmedEvent is missing required fields"
+            );
+        }
+    }
 }

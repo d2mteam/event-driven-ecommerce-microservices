@@ -78,9 +78,13 @@ class InventoryEventListenerTest {
                 }
                 """;
 
+        // Compact constructor của record chặn ngay lúc deserialize, nên lỗi
+        // đi ra dưới dạng lỗi JSON. Điều cần giữ là: không retry, không gọi service.
         assertThatThrownBy(() -> listener.consume(payload))
                 .isInstanceOf(NonRetryableOrderEventException.class)
-                .hasMessage("Inventory event is missing required fields");
+                .hasRootCauseInstanceOf(IllegalArgumentException.class)
+                .rootCause()
+                .hasMessageContaining("ReservationExpiredEvent is missing required fields");
 
         verifyNoInteractions(persistenceService);
     }

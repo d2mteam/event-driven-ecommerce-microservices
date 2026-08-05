@@ -86,7 +86,11 @@ class OrderEventConsumerTest {
 
         assertThatThrownBy(() -> consumer.consume(eventJson.toString()))
                 .isInstanceOf(NonRetryableOrderEventException.class)
-                .hasMessage("Missing required field: orderId");
+                // Compact constructor của record chặn ngay lúc deserialize.
+                // Hợp đồng cần giữ: không retry, không gọi service.
+                .hasRootCauseInstanceOf(IllegalArgumentException.class)
+                .rootCause()
+                .hasMessageContaining("OrderConfirmedEvent is missing required fields");
 
         verifyNoInteractions(reservationService);
     }

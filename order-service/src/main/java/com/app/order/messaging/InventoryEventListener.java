@@ -72,22 +72,14 @@ public class InventoryEventListener {
         }
     }
 
+    /** Field bắt buộc do compact constructor của record lo. */
     private void validate(ReservationExpiredEvent event) {
-        if (event == null) {
-            throw invalidEvent("Inventory event must be a JSON object");
-        }
         if (event.eventVersion() != EventVersions.RESERVATION_EXPIRED
                 || event.eventType()
                 != InventoryEventType.RESERVATION_EXPIRED) {
             throw invalidEvent(
                     "Unsupported inventory event version or type"
             );
-        }
-        if (event.messageId() == null
-                || event.orderId() == null
-                || event.reservationId() == null
-                || event.occurredAt() == null) {
-            throw invalidEvent("Inventory event is missing required fields");
         }
     }
 

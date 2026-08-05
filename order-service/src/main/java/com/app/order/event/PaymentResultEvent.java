@@ -16,4 +16,18 @@ public record PaymentResultEvent(
         BigDecimal amount,
         Instant occurredAt
 ) {
+
+    /** Chạy cả khi Jackson deserialize, nên không tạo được instance sai. */
+    public PaymentResultEvent {
+        if (messageId == null
+                || eventType == null
+                || paymentId == null
+                || orderId == null
+                || amount == null
+                || occurredAt == null) {
+            throw new IllegalArgumentException(
+                    "PaymentResultEvent is missing required fields"
+            );
+        }
+    }
 }

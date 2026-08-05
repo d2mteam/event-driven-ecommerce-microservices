@@ -11,4 +11,17 @@ public record ReservationExpiredEvent(
         Long reservationId,
         Instant occurredAt
 ) {
+
+    /** Chạy cả khi Jackson deserialize, nên không tạo được instance sai. */
+    public ReservationExpiredEvent {
+        if (messageId == null
+                || eventType == null
+                || orderId == null
+                || reservationId == null
+                || occurredAt == null) {
+            throw new IllegalArgumentException(
+                    "ReservationExpiredEvent is missing required fields"
+            );
+        }
+    }
 }

@@ -37,17 +37,6 @@ public class OrderEventConsumer {
     }
 
     private void consumeOrderConfirmed(JsonNode eventJson) {
-        requireFields(
-                eventJson,
-                "messageId",
-                "eventVersion",
-                "orderId",
-                "userId",
-                "reservationId",
-                "totalPrice",
-                "items",
-                "occurredAt"
-        );
         OrderConfirmedEvent event = readEvent(
                 eventJson,
                 OrderConfirmedEvent.class
@@ -63,16 +52,6 @@ public class OrderEventConsumer {
     }
 
     private void consumeOrderFailed(JsonNode eventJson) {
-        requireFields(
-                eventJson,
-                "messageId",
-                "eventVersion",
-                "orderId",
-                "userId",
-                "reservationId",
-                "reason",
-                "occurredAt"
-        );
         OrderFailedEvent event = readEvent(eventJson, OrderFailedEvent.class);
         if (event.eventVersion() != EventVersions.ORDER_FAILED) {
             throw invalidEvent(
@@ -110,7 +89,10 @@ public class OrderEventConsumer {
     }
 
     private String requiredText(JsonNode eventJson, String field) {
-        requireFields(eventJson, field);
+        if (eventJson == null || !eventJson.isObject()
+                || !eventJson.hasNonNull(field)) {
+            throw invalidEvent("Missing required field: " + field);
+        }
         String value = eventJson.get(field).asText();
         if (value.isBlank()) {
             throw invalidEvent("Required field is blank: " + field);
@@ -118,16 +100,6 @@ public class OrderEventConsumer {
         return value;
     }
 
-    private void requireFields(JsonNode eventJson, String... fields) {
-        if (eventJson == null || !eventJson.isObject()) {
-            throw invalidEvent("Order event must be a JSON object");
-        }
-        for (String field : fields) {
-            if (!eventJson.hasNonNull(field)) {
-                throw invalidEvent("Missing required field: " + field);
-            }
-        }
-    }
 
     private NonRetryableOrderEventException invalidEvent(String message) {
         return new NonRetryableOrderEventException(message);

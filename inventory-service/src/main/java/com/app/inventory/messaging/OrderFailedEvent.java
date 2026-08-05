@@ -14,18 +14,17 @@ public record OrderFailedEvent(
         Instant occurredAt
 ) {
 
-    public void validate() {
+    /** Chạy cả khi Jackson deserialize, nên không tạo được instance sai. */
+    public OrderFailedEvent {
         if (messageId == null
                 || eventType != OrderEventType.ORDER_FAILED
                 || orderId == null
                 || reservationId == null
                 || occurredAt == null) {
-            throw new IllegalArgumentException("OrderFailedEvent has missing fields");
-        }
-        if (eventVersion != EventVersions.ORDER_FAILED) {
             throw new IllegalArgumentException(
-                    "Unsupported OrderFailedEvent version: " + eventVersion
+                    "OrderFailedEvent is missing required fields"
             );
         }
     }
+
 }

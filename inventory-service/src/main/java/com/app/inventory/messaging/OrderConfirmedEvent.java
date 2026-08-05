@@ -17,18 +17,17 @@ public record OrderConfirmedEvent(
         Instant occurredAt
 ) {
 
-    public void validate() {
+    /** Chạy cả khi Jackson deserialize, nên không tạo được instance sai. */
+    public OrderConfirmedEvent {
         if (messageId == null
                 || eventType != OrderEventType.ORDER_CONFIRMED
                 || orderId == null
                 || reservationId == null
                 || occurredAt == null) {
-            throw new IllegalArgumentException("OrderConfirmedEvent has missing fields");
-        }
-        if (eventVersion != EventVersions.ORDER_CONFIRMED) {
             throw new IllegalArgumentException(
-                    "Unsupported OrderConfirmedEvent version: " + eventVersion
+                    "OrderConfirmedEvent is missing required fields"
             );
         }
     }
+
 }

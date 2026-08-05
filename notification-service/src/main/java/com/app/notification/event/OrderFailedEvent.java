@@ -13,4 +13,19 @@ public record OrderFailedEvent(
         String reason,
         Instant occurredAt
 ) {
+
+    /** Chạy cả khi Jackson deserialize, nên không tạo được instance sai. */
+    public OrderFailedEvent {
+        if (messageId == null
+                || eventType != OrderEventType.ORDER_FAILED
+                || orderId == null
+                || userId == null
+                || reservationId == null
+                || reason == null
+                || occurredAt == null) {
+            throw new IllegalArgumentException(
+                    "OrderFailedEvent is missing required fields"
+            );
+        }
+    }
 }

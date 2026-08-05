@@ -41,6 +41,12 @@ public class OrderIdempotency {
     @Column(name = "idempotency_key", nullable = false, length = 128)
     private String idempotencyKey;
 
+    @Column(name = "request_hash", nullable = false, length = 64)
+    private String requestHash;
+
+    @Column(name = "order_id")
+    private UUID orderId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, columnDefinition = "varchar(32)")
     private IdempotencyStatus status;
@@ -50,12 +56,15 @@ public class OrderIdempotency {
 
     public static OrderIdempotency processing(
             UUID userId,
-            String idempotencyKey
+            String idempotencyKey,
+            String requestHash
     ) {
         return new OrderIdempotency(
                 null,
                 userId,
                 idempotencyKey,
+                requestHash,
+                null,
                 IdempotencyStatus.PROCESSING,
                 Instant.now()
         );

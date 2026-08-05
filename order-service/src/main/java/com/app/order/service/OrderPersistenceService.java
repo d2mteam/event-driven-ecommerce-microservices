@@ -13,14 +13,12 @@ import com.app.order.event.PaymentResultEvent;
 import com.app.order.event.ReservationExpiredEvent;
 import com.app.order.exception.MessageSerializationException;
 import com.app.order.mapper.OrderMapper;
-import com.app.order.model.IdempotencyStatus;
 import com.app.order.model.OrderFailureReason;
 import com.app.order.model.OrderStatus;
 import com.app.order.model.OutboxStatus;
 import com.app.order.model.PaymentResultOutcome;
 import com.app.order.model.ReservationExpirationOutcome;
 import com.app.order.repository.OrderRepository;
-import com.app.order.repository.OrderIdempotencyRepository;
 import com.app.order.repository.OutboxMessageRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -39,29 +38,19 @@ import java.util.UUID;
 public class OrderPersistenceService {
 
     private final OrderRepository orderRepository;
-    private final OrderIdempotencyRepository idempotencyRepository;
     private final OutboxMessageRepository outboxMessageRepository;
     private final ObjectMapper objectMapper;
     private final KafkaMessagingProperties kafkaProperties;
     private final OrderMapper orderMapper;
 
     @Transactional
-    public Order saveOrderAndCompleteClaim(
-            Order order,
-            Long claimId
-    ) {
-        Order savedOrder = orderRepository.save(order);
-        int updated = idempotencyRepository.changeStatus(
-                claimId,
-                IdempotencyStatus.PROCESSING,
-                IdempotencyStatus.COMPLETED
-        );
-        if (updated != 1) {
-            throw new IllegalStateException(
-                    "Idempotency record is not processing"
-            );
-        }
-        return savedOrder;
+    public Order save(Order order) {
+        return orderRepository.save(order);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Order> findById(UUID orderId) {
+        return orderRepository.findById(orderId);
     }
 
     @Transactional

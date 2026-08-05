@@ -3,6 +3,8 @@ package com.app.order.client;
 import com.app.order.config.RestClientConfig;
 import com.app.order.exception.DownstreamServiceException;
 import com.app.order.exception.InventoryConflictException;
+import java.util.UUID;
+
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
@@ -22,6 +24,8 @@ public class InventoryClient {
         this.restClient = restClient;
     }
 
+    /** Trả về reservation đã kiểm tra: đúng orderId đã gửi, trạng thái HELD,
+     *  có id và hạn giữ hàng. Caller không phải kiểm lại. */
     public InventoryReservationResponse reserve(
             InventoryReservationRequest request
     ) {
@@ -37,6 +41,7 @@ public class InventoryClient {
                         "Inventory Service returned an empty response"
                 );
             }
+            validate(request.orderId(), response);
             return response;
         } catch (HttpClientErrorException.Conflict exception) {
             throw new InventoryConflictException();
@@ -44,6 +49,20 @@ public class InventoryClient {
             throw new DownstreamServiceException(
                     "Cannot reserve inventory through Inventory Service",
                     exception
+            );
+        }
+    }
+
+    private void validate(
+            UUID orderId,
+            InventoryReservationResponse reservation
+    ) {
+        if (reservation.reservationId() == null
+                || !orderId.equals(reservation.orderId())
+                || reservation.status() != ReservationStatus.HELD
+                || reservation.expiresAt() == null) {
+            throw new DownstreamServiceException(
+                    "Inventory Service returned an invalid reservation"
             );
         }
     }

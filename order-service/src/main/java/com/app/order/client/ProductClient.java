@@ -10,7 +10,9 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Component
 public class ProductClient {
@@ -25,6 +27,8 @@ public class ProductClient {
         this.restClient = restClient;
     }
 
+    /** Trả về danh sách đã kiểm tra: đủ mọi productId đã hỏi, và mỗi phần tử có
+     *  id/name/price hợp lệ. Caller không phải kiểm lại. */
     public List<ProductClientResponse> findProducts(List<Long> productIds) {
         try {
             List<ProductClientResponse> products = restClient.post()
@@ -39,6 +43,7 @@ public class ProductClient {
                         "Product Service returned an empty response"
                 );
             }
+            validate(products, productIds);
             return products;
         } catch (HttpClientErrorException.NotFound exception) {
             throw new ProductNotFoundException(productIds);
@@ -48,5 +53,31 @@ public class ProductClient {
                     exception
             );
         }
+    }
+
+    private void validate(
+            List<ProductClientResponse> products,
+            List<Long> requestedIds
+    ) {
+        if (products.stream().anyMatch(ProductClient::isInvalid)) {
+            throw new DownstreamServiceException(
+                    "Product Service returned invalid product data"
+            );
+        }
+
+        Set<Long> missingIds = new LinkedHashSet<>(requestedIds);
+        products.forEach(product -> missingIds.remove(product.id()));
+        if (!missingIds.isEmpty()) {
+            throw new ProductNotFoundException(missingIds);
+        }
+    }
+
+    private static boolean isInvalid(ProductClientResponse product) {
+        return product == null
+                || product.id() == null
+                || product.name() == null
+                || product.name().isBlank()
+                || product.price() == null
+                || product.price().signum() < 0;
     }
 }

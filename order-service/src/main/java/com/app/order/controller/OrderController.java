@@ -9,6 +9,8 @@ import com.app.order.service.IdempotentOrderService;
 import com.app.order.service.OrderPaymentService;
 import com.app.order.service.OrderQueryService;
 import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -60,7 +62,8 @@ public class OrderController {
     @PostMapping
     public ResponseEntity<OrderResponse> create(
             @RequestHeader(ApiHeaders.USER_ID) UUID userId,
-            @RequestHeader(ApiHeaders.IDEMPOTENCY_KEY) String idempotencyKey,
+            @RequestHeader(ApiHeaders.IDEMPOTENCY_KEY)
+            @NotBlank @Size(max = 128) String idempotencyKey,
             @Valid @RequestBody CreateOrderRequest request
     ) {
         OrderResponse response = idempotentOrderService.create(

@@ -6,6 +6,11 @@ spring:
       server:
         webflux:
           routes:
+            - id: user-service
+              uri: "${USER_SERVICE_URL:http://localhost:8087}"
+              predicates:
+                - Path=/api/auth/**
+                - Method=POST
             - id: product-service
               uri: "${PRODUCT_SERVICE_URL:http://localhost:8081}"
               predicates:
@@ -24,6 +29,16 @@ spring:
           httpclient:
             connect-timeout: "${GATEWAY_CONNECT_TIMEOUT_MS:2000}"
             response-timeout: "${GATEWAY_RESPONSE_TIMEOUT:10s}"
+          globalcors:
+            cors-configurations:
+              '[/**]':
+                allowedOriginPatterns: "${GATEWAY_CORS_ALLOWED_ORIGINS:*}"
+                allowedMethods: [GET, POST]
+                allowedHeaders: "*"
+
+security:
+  app:
+    jwt-public-key: "${JWT_PUBLIC_KEY:classpath:jwt-public.pem}"
 
 management:
   endpoints:

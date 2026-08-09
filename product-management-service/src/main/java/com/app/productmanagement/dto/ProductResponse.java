@@ -1,5 +1,6 @@
 package com.app.productmanagement.dto;
 
+import com.app.productmanagement.model.ProductStatus;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -23,4 +24,5 @@ public class ProductResponse implements Serializable {
     private String name;
     private BigDecimal price;
     private Map<String, String> attributes;
+    private ProductStatus status;
 }

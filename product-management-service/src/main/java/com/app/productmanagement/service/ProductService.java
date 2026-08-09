@@ -26,7 +26,8 @@ public interface ProductService {
 
     PageResponse<ProductResponse> getAdminProducts(
             ProductStatus status,
-            String query,
+            String name,
+            String category,
             Pageable pageable
     );
 

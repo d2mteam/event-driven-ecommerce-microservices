@@ -88,11 +88,17 @@ public class ProductServiceImpl implements ProductService {
         String normalizedCategory = category == null || category.isBlank()
                 ? null
                 : category.trim();
+        // Thứ tự do chính câu SQL quyết định (điểm liên quan, rồi id) — bỏ sort
+        // của Pageable để không bị chèn thêm ORDER BY đè lên, chỉ giữ page/size.
+        Pageable unsorted = PageRequest.of(
+                pageable.getPageNumber(),
+                pageable.getPageSize()
+        );
         Page<ProductResponse> products = productRepository
                 .searchActiveProducts(
                         normalizedName,
                         normalizedCategory,
-                        pageable
+                        unsorted
                 )
                 .map(productMapper::toResponse);
         return PageResponse.from(products);
@@ -101,7 +107,8 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public PageResponse<ProductResponse> getAdminProducts(
             ProductStatus status,
-            String query,
+            String name,
+            String category,
             Pageable pageable
     ) {
         if (pageable.getPageSize() > MAX_PAGE_SIZE) {
@@ -134,13 +141,15 @@ public class ProductServiceImpl implements ProductService {
                 stableSort
         );
 
-        String normalizedQuery = query == null || query.isBlank()
+        String normalizedName = name == null || name.isBlank() ? null : name.trim();
+        String normalizedCategory = category == null || category.isBlank()
                 ? null
-                : query.trim();
+                : category.trim();
         Page<ProductResponse> products = productRepository
                 .findAdminProducts(
                         status == null ? null : status.name(),
-                        normalizedQuery,
+                        normalizedName,
+                        normalizedCategory,
                         stablePageable
                 )
                 .map(productMapper::toResponse);

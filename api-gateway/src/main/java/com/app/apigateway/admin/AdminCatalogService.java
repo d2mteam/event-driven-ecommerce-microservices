@@ -34,9 +34,10 @@ public class AdminCatalogService {
             int size,
             String sort,
             String status,
-            String query
+            String name,
+            String category
     ) {
-        return productClient.findProducts(page, size, sort, status, query)
+        return productClient.findProducts(page, size, sort, status, name, category)
                 .flatMap(productPage -> {
                     if (productPage.content().isEmpty()) {
                         return Mono.just(toResponse(productPage, Map.of()));

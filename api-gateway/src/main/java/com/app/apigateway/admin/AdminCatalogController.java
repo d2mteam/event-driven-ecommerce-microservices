@@ -29,8 +29,9 @@ public class AdminCatalogController {
             @Pattern(regexp = "(id|name|price|status),(asc|desc)") String sort,
             @RequestParam(required = false)
             @Pattern(regexp = "DRAFT|ACTIVE|ARCHIVED") String status,
-            @RequestParam(required = false) String query
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String category
     ) {
-        return catalogService.getCatalog(page, size, sort, status, query);
+        return catalogService.getCatalog(page, size, sort, status, name, category);
     }
 }

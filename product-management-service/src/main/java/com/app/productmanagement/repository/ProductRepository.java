@@ -30,6 +30,11 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                           or match(product.name) against (:name in natural language mode)
                       )
                       and (:category is null or product.category = :category)
+                    order by
+                        case when :name is null then 0
+                             else match(product.name) against (:name in natural language mode)
+                        end desc,
+                        product.id asc
                     """,
             countQuery = """
                     select count(*)
@@ -55,26 +60,27 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                     from products product
                     where (:status is null or product.status = :status)
                       and (
-                          :query is null
-                          or match(product.name) against (:query in natural language mode)
-                          or product.category = :query
+                          :name is null
+                          or match(product.name) against (:name in natural language mode)
                       )
+                      and (:category is null or product.category = :category)
                     """,
             countQuery = """
                     select count(*)
                     from products product
                     where (:status is null or product.status = :status)
                       and (
-                          :query is null
-                          or match(product.name) against (:query in natural language mode)
-                          or product.category = :query
+                          :name is null
+                          or match(product.name) against (:name in natural language mode)
                       )
+                      and (:category is null or product.category = :category)
                     """,
             nativeQuery = true
     )
     Page<Product> findAdminProducts(
             @Param("status") String status,
-            @Param("query") String query,
+            @Param("name") String name,
+            @Param("category") String category,
             Pageable pageable
     );
 }

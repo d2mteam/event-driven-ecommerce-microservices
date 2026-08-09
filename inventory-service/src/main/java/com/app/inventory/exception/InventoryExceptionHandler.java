@@ -34,4 +34,27 @@ public class InventoryExceptionHandler {
 
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
     }
+
+    @ExceptionHandler(InventoryAdjustmentConflictException.class)
+    public ResponseEntity<ProblemDetail> handleAdjustmentConflict(
+            InventoryAdjustmentConflictException exception
+    ) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT,
+                exception.getMessage()
+        );
+        problem.setType(INVENTORY_CONFLICT_TYPE);
+        problem.setTitle("Inventory adjustment failed");
+        problem.setProperty("code", exception.getCode());
+        problem.setProperty("productId", exception.getProductId());
+
+        if (exception.getRequestedDelta() != null) {
+            problem.setProperty("onHandQuantity", exception.getOnHandQuantity());
+            problem.setProperty("reservedQuantity", exception.getReservedQuantity());
+            problem.setProperty("requestedDelta", exception.getRequestedDelta());
+            problem.setProperty("minimumAllowedDelta", exception.getMinimumAllowedDelta());
+        }
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
 }

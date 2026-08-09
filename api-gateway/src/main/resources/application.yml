@@ -1,6 +1,8 @@
 spring:
   application:
     name: api-gateway
+  codec:
+    max-in-memory-size: "${GATEWAY_MAX_IN_MEMORY_SIZE:5MB}"
   cloud:
     gateway:
       server:
@@ -16,6 +18,16 @@ spring:
               predicates:
                 - Path=/api/products,/api/products/**
                 - Method=GET
+            - id: product-admin-service
+              uri: "${PRODUCT_SERVICE_URL:http://localhost:8081}"
+              predicates:
+                - Path=/api/admin/products,/api/admin/products/**
+                - Method=POST,PUT,DELETE
+            - id: inventory-admin-service
+              uri: "${INVENTORY_SERVICE_URL:http://localhost:8083}"
+              predicates:
+                - Path=/api/admin/inventory/**
+                - Method=POST
             - id: order-service
               uri: "${ORDER_SERVICE_URL:http://localhost:8082}"
               predicates:
@@ -33,8 +45,15 @@ spring:
             cors-configurations:
               '[/**]':
                 allowedOriginPatterns: "${GATEWAY_CORS_ALLOWED_ORIGINS:*}"
-                allowedMethods: [GET, POST]
+                allowedMethods: [GET, POST, PUT, DELETE, OPTIONS]
                 allowedHeaders: "*"
+
+app:
+  services:
+    product-base-url: "${PRODUCT_SERVICE_URL:http://localhost:8081}"
+    inventory-base-url: "${INVENTORY_SERVICE_URL:http://localhost:8083}"
+  admin-catalog:
+    timeout: "${ADMIN_CATALOG_TIMEOUT:10s}"
 
 security:
   app:

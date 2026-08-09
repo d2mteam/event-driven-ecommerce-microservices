@@ -18,6 +18,11 @@ spring:
               predicates:
                 - Path=/api/products,/api/products/**
                 - Method=GET
+            - id: cart-service
+              uri: "${PRODUCT_SERVICE_URL:http://localhost:8081}"
+              predicates:
+                - Path=/api/cart,/api/cart/**
+                - Method=GET,PUT,DELETE
             - id: product-admin-service
               uri: "${PRODUCT_SERVICE_URL:http://localhost:8081}"
               predicates:

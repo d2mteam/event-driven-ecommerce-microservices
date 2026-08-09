@@ -7,14 +7,74 @@ COMPOSE_FILE="${ROOT_DIR}/docker-compose/docker-compose.yaml"
 RUN_DIR="${ROOT_DIR}/.run"
 LOG_DIR="${RUN_DIR}/logs"
 PID_DIR="${RUN_DIR}/pids"
+OTEL_ENABLED=false
+OTEL_JAVAAGENT_VERSION="${OTEL_JAVAAGENT_VERSION:-2.30.0}"
+OTEL_JAVAAGENT_PATH="${OTEL_JAVAAGENT_PATH:-${RUN_DIR}/otel/opentelemetry-javaagent.jar}"
 
 mkdir -p "${LOG_DIR}" "${PID_DIR}"
+
+usage() {
+  cat <<'EOF'
+Usage: ./scripts/start-stack.sh [options]
+
+Options:
+  --otel [agent.jar]  Enable tracing for every service and start Collector + Zipkin.
+                      Without a path, the Java agent is cached under .run/otel.
+  --no-otel           Disable OpenTelemetry (default).
+  -h, --help          Show this help.
+EOF
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --otel)
+      OTEL_ENABLED=true
+      if [ "$#" -gt 1 ] && [[ "$2" != -* ]]; then
+        OTEL_JAVAAGENT_PATH="$2"
+        shift
+      fi
+      ;;
+    --no-otel)
+      OTEL_ENABLED=false
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "unknown option: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
     echo "missing command: $1" >&2
     exit 1
   fi
+}
+
+prepare_otel_agent() {
+  if [ -f "${OTEL_JAVAAGENT_PATH}" ]; then
+    return 0
+  fi
+
+  local agent_dir
+  local download_file
+  local download_url
+  agent_dir="$(dirname "${OTEL_JAVAAGENT_PATH}")"
+  download_file="${OTEL_JAVAAGENT_PATH}.download"
+  download_url="https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v${OTEL_JAVAAGENT_VERSION}/opentelemetry-javaagent.jar"
+
+  mkdir -p "${agent_dir}"
+  echo "downloading OpenTelemetry Java agent ${OTEL_JAVAAGENT_VERSION}"
+  curl --fail --location --retry 3 \
+    --output "${download_file}" \
+    "${download_url}"
+  mv "${download_file}" "${OTEL_JAVAAGENT_PATH}"
 }
 
 java_command() {
@@ -53,6 +113,8 @@ start_service() {
   local pid_file="${PID_DIR}/${service_name}.pid"
   local java_bin
   local jar_file
+  local -a java_args=()
+  local -a runtime_environment=()
 
   echo "building ${service_name}"
   (
@@ -67,11 +129,24 @@ start_service() {
   fi
 
   java_bin="$(java_command)"
+  if [ "${OTEL_ENABLED}" = true ]; then
+    java_args+=("-javaagent:${OTEL_JAVAAGENT_PATH}")
+    runtime_environment+=(
+      "OTEL_SERVICE_NAME=${service_name}"
+      "OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://localhost:4318}"
+      "OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}"
+      "OTEL_TRACES_EXPORTER=${OTEL_TRACES_EXPORTER:-otlp}"
+      "OTEL_METRICS_EXPORTER=${OTEL_METRICS_EXPORTER:-none}"
+      "OTEL_LOGS_EXPORTER=${OTEL_LOGS_EXPORTER:-none}"
+    )
+  fi
   echo "starting ${service_name} on port ${port}"
   : >"${log_file}"
   (
     cd "${service_dir}"
-    setsid "${java_bin}" -jar "${jar_file}" >"${log_file}" 2>&1 < /dev/null &
+    setsid env "${runtime_environment[@]}" \
+      "${java_bin}" "${java_args[@]}" -jar "${jar_file}" \
+      >"${log_file}" 2>&1 < /dev/null &
     echo "$!" >"${pid_file}"
   )
 
@@ -87,12 +162,34 @@ require_command curl
 require_command lsof
 require_command setsid
 
+if [ "${OTEL_ENABLED}" = true ]; then
+  prepare_otel_agent
+fi
+
 "${SCRIPT_DIR}/stop-app-ports.sh" 8080 8081 8082 8083 8084 8086
 
 echo "starting docker infrastructure"
-docker compose -f "${COMPOSE_FILE}" up -d \
-  mariadb cloudbeaver redis redis-insight \
+infrastructure_services=(
+  mariadb cloudbeaver redis redis-insight
   kafka-1 kafka-2 kafka-3 kafka-console
+)
+compose_options=(-f "${COMPOSE_FILE}")
+
+if [ "${OTEL_ENABLED}" = true ]; then
+  compose_options+=(--profile observability)
+  infrastructure_services+=(zipkin otel-collector)
+else
+  docker compose -f "${COMPOSE_FILE}" --profile observability \
+    stop otel-collector zipkin >/dev/null
+fi
+
+docker compose "${compose_options[@]}" up -d --remove-orphans \
+  "${infrastructure_services[@]}"
+
+if [ "${OTEL_ENABLED}" = true ]; then
+  wait_http "zipkin" "http://localhost:9411/health" 60
+  wait_http "otel-collector" "http://localhost:13133" 60
+fi
 
 start_service "product-management-service" "product-service" 8081 "http://localhost:8081/api/products"
 start_service "inventory-service" "inventory-service" 8083 "http://localhost:8083/internal/inventory/reservations"
@@ -110,3 +207,9 @@ echo "redpanda console: http://localhost:8085"
 echo "redis insight: http://localhost:5540"
 echo "database ui: http://localhost:8978 (admin / admin123)"
 echo "mock payment: http://localhost:8080/api/payments/{paymentId}/mock"
+if [ "${OTEL_ENABLED}" = true ]; then
+  echo "otel traces: enabled -> ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://localhost:4318}"
+  echo "zipkin: http://localhost:9411/zipkin"
+else
+  echo "otel traces: disabled (use --otel)"
+fi

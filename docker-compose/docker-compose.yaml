@@ -190,6 +190,33 @@ services:
       kafka-3:
         condition: service_healthy
 
+  zipkin:
+    image: openzipkin/zipkin:3.6.1
+    container_name: ecommerce_zipkin
+    restart: unless-stopped
+    profiles: ["observability"]
+    ports:
+      - "9411:9411"
+    environment:
+      JAVA_OPTS: "-Xms64m -Xmx256m"
+    mem_limit: 384m
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.158.0
+    container_name: ecommerce_otel_collector
+    restart: unless-stopped
+    profiles: ["observability"]
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "13133:13133"
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    depends_on:
+      - zipkin
+    mem_limit: 256m
+
 volumes:
   mariadb_data:
   cloudbeaver_data:

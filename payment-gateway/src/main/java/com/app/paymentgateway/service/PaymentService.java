@@ -8,6 +8,7 @@ import com.app.paymentgateway.dto.PaymentResponse;
 import com.app.paymentgateway.entity.Payment;
 import com.app.paymentgateway.entity.PaymentOutboxMessage;
 import com.app.paymentgateway.event.EventVersions;
+import com.app.paymentgateway.event.OrderCancellationRequestedEvent;
 import com.app.paymentgateway.event.PaymentEventType;
 import com.app.paymentgateway.event.PaymentResultEvent;
 import com.app.paymentgateway.exception.PaymentConflictException;
@@ -136,6 +137,38 @@ public class PaymentService {
         return payments.size();
     }
 
+    @Transactional
+    public void refund(OrderCancellationRequestedEvent event) {
+        Payment payment = paymentRepository
+                .findByOrderIdForUpdate(event.orderId())
+                .orElseThrow(() -> new PaymentConflictException(
+                        "Order " + event.orderId() + " has no payment"
+                ));
+
+        if (payment.getAmount().compareTo(event.amount()) != 0) {
+            throw new PaymentConflictException(
+                    "Refund amount does not match payment " + payment.getId()
+            );
+        }
+        if (payment.getStatus() == PaymentStatus.REFUNDED) {
+            return;
+        }
+        if (payment.getStatus() != PaymentStatus.SUCCEEDED) {
+            throw new PaymentConflictException(
+                    "Payment " + payment.getId()
+                            + " cannot be refunded from "
+                            + payment.getStatus()
+            );
+        }
+
+        payment.refund();
+        saveResultEvent(
+                payment,
+                PaymentEventType.PAYMENT_REFUNDED,
+                Instant.now()
+        );
+    }
+
     private Payment findPayment(Long paymentId) {
         return paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new PaymentNotFoundException(paymentId));
@@ -165,6 +198,7 @@ public class PaymentService {
         return switch (status) {
             case SUCCEEDED -> PaymentEventType.PAYMENT_SUCCEEDED;
             case FAILED -> PaymentEventType.PAYMENT_FAILED;
+            case REFUNDED -> PaymentEventType.PAYMENT_REFUNDED;
             default -> throw new IllegalArgumentException(
                     "No completion event for payment status " + status
             );

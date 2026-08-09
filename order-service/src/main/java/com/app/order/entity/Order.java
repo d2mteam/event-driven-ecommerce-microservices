@@ -111,4 +111,22 @@ public class Order {
         failureReason = OrderFailureReason.RESERVATION_EXPIRED;
         return true;
     }
+
+    public boolean requestCancellation() {
+        if (status != OrderStatus.CONFIRMED) {
+            return false;
+        }
+
+        status = OrderStatus.CANCEL_PENDING;
+        return true;
+    }
+
+    public boolean completeCancellation() {
+        if (status != OrderStatus.CANCEL_PENDING) {
+            return false;
+        }
+
+        status = OrderStatus.CANCELLED;
+        return true;
+    }
 }

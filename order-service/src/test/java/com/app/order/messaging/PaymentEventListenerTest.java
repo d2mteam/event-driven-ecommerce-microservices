@@ -5,6 +5,7 @@ import com.app.order.event.PaymentEventType;
 import com.app.order.event.PaymentResultEvent;
 import com.app.order.model.PaymentResultOutcome;
 import com.app.order.service.OrderPersistenceService;
+import com.app.order.service.OrderCancellationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,13 +28,20 @@ class PaymentEventListenerTest {
     @Mock
     private OrderPersistenceService persistenceService;
 
+    @Mock
+    private OrderCancellationService cancellationService;
+
     private ObjectMapper objectMapper;
     private PaymentEventListener listener;
 
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper().findAndRegisterModules();
-        listener = new PaymentEventListener(objectMapper, persistenceService);
+        listener = new PaymentEventListener(
+                objectMapper,
+                persistenceService,
+                cancellationService
+        );
     }
 
     @Test
@@ -56,6 +64,26 @@ class PaymentEventListenerTest {
         listener.consume(objectMapper.writeValueAsString(event));
 
         verify(persistenceService).applyPaymentResult(event);
+    }
+
+    @Test
+    void routesRefundResultToCancellationService() throws Exception {
+        PaymentResultEvent event = new PaymentResultEvent(
+                UUID.randomUUID(),
+                EventVersions.PAYMENT_RESULT,
+                PaymentEventType.PAYMENT_REFUNDED,
+                42L,
+                UUID.randomUUID(),
+                new BigDecimal("199000.00"),
+                Instant.parse("2026-08-04T05:00:00Z")
+        );
+        when(cancellationService.completeRefund(event))
+                .thenReturn(PaymentResultOutcome.APPLIED);
+
+        listener.consume(objectMapper.writeValueAsString(event));
+
+        verify(cancellationService).completeRefund(event);
+        verifyNoInteractions(persistenceService);
     }
 
     @Test

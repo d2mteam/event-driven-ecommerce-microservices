@@ -1,27 +1,19 @@
 package com.app.order.service;
 
-import com.app.order.config.KafkaMessagingProperties;
 import com.app.order.entity.Order;
-import com.app.order.entity.OutboxMessage;
 import com.app.order.event.OrderConfirmedEvent;
 import com.app.order.event.EventVersions;
 import com.app.order.event.OrderEventType;
 import com.app.order.event.OrderFailedEvent;
-import com.app.order.event.OutboxPayload;
 import com.app.order.event.PaymentEventType;
 import com.app.order.event.PaymentResultEvent;
 import com.app.order.event.ReservationExpiredEvent;
-import com.app.order.exception.MessageSerializationException;
 import com.app.order.mapper.OrderMapper;
 import com.app.order.model.OrderFailureReason;
 import com.app.order.model.OrderStatus;
-import com.app.order.model.OutboxStatus;
 import com.app.order.model.PaymentResultOutcome;
 import com.app.order.model.ReservationExpirationOutcome;
 import com.app.order.repository.OrderRepository;
-import com.app.order.repository.OutboxMessageRepository;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -38,10 +30,8 @@ import java.util.UUID;
 public class OrderPersistenceService {
 
     private final OrderRepository orderRepository;
-    private final OutboxMessageRepository outboxMessageRepository;
-    private final ObjectMapper objectMapper;
-    private final KafkaMessagingProperties kafkaProperties;
     private final OrderMapper orderMapper;
+    private final OrderOutboxWriter outboxWriter;
 
     @Transactional
     public Order save(Order order) {
@@ -55,6 +45,10 @@ public class OrderPersistenceService {
 
     @Transactional
     public PaymentResultOutcome applyPaymentResult(PaymentResultEvent event) {
+        if (event.eventType() == PaymentEventType.PAYMENT_REFUNDED) {
+            return PaymentResultOutcome.INVARIANT_VIOLATION;
+        }
+
         Order order = orderRepository.findByIdForUpdate(event.orderId())
                 .orElse(null);
         if (order == null) {
@@ -84,6 +78,7 @@ public class OrderPersistenceService {
             case PAYMENT_SUCCEEDED -> null;
             case PAYMENT_FAILED -> OrderFailureReason.PAYMENT_FAILED;
             case PAYMENT_EXPIRED -> OrderFailureReason.PAYMENT_EXPIRED;
+            case PAYMENT_REFUNDED -> null;
         };
         if (expectedFailure != null
                 && order.getStatus() == OrderStatus.FAILED
@@ -98,6 +93,7 @@ public class OrderPersistenceService {
             case PAYMENT_SUCCEEDED -> confirmOrder(order);
             case PAYMENT_FAILED -> failOrder(order, OrderFailureReason.PAYMENT_FAILED);
             case PAYMENT_EXPIRED -> failOrder(order, OrderFailureReason.PAYMENT_EXPIRED);
+            case PAYMENT_REFUNDED -> false;
         };
         return changed
                 ? PaymentResultOutcome.APPLIED
@@ -146,11 +142,7 @@ public class OrderPersistenceService {
                 .items(orderMapper.toEventItems(order.getItems()))
                 .occurredAt(occurredAt)
                 .build();
-        outboxMessageRepository.save(toOutboxMessage(
-                kafkaProperties.getTopics().getOrderEvents(),
-                order.getId().toString(),
-                orderConfirmed
-        ));
+        outboxWriter.add(orderConfirmed, order.getId());
         return true;
     }
 
@@ -177,40 +169,6 @@ public class OrderPersistenceService {
                 .reason(order.getFailureReason())
                 .occurredAt(Instant.now())
                 .build();
-        outboxMessageRepository.save(toOutboxMessage(
-                kafkaProperties.getTopics().getOrderEvents(),
-                order.getId().toString(),
-                orderFailed
-        ));
-    }
-
-    private OutboxMessage toOutboxMessage(
-            String topic,
-            String key,
-            OutboxPayload message
-    ) {
-        Instant createdAt = Instant.now();
-        return OutboxMessage.builder()
-                .messageId(message.messageId())
-                .topic(topic)
-                .key(key)
-                .type(message.getClass().getSimpleName())
-                .payload(serialize(message))
-                .createdAt(createdAt)
-                .status(OutboxStatus.PENDING)
-                .attemptCount(0)
-                .nextAttemptAt(createdAt)
-                .build();
-    }
-
-    private String serialize(Object message) {
-        try {
-            return objectMapper.writeValueAsString(message);
-        } catch (JsonProcessingException exception) {
-            throw new MessageSerializationException(
-                    "Cannot serialize " + message.getClass().getSimpleName(),
-                    exception
-            );
-        }
+        outboxWriter.add(orderFailed, order.getId());
     }
 }

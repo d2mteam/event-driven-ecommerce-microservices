@@ -5,6 +5,7 @@ import com.app.notification.dto.NotificationResponse;
 import com.app.notification.entity.Notification;
 import com.app.notification.event.OrderConfirmedEvent;
 import com.app.notification.event.OrderFailedEvent;
+import com.app.notification.event.OrderCancelledEvent;
 import org.mapstruct.Context;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -34,6 +35,15 @@ public interface NotificationMapper {
         return properties.failureMessageTemplate().formatted(
                 event.orderId(),
                 event.reason()
+        );
+    }
+
+    default String toCancellationMessage(
+            OrderCancelledEvent event,
+            NotificationProperties properties
+    ) {
+        return properties.cancellationMessageTemplate().formatted(
+                event.orderId()
         );
     }
 }

@@ -6,11 +6,12 @@ import com.app.notification.dto.PageResponse;
 import com.app.notification.entity.Notification;
 import com.app.notification.event.OrderConfirmedEvent;
 import com.app.notification.event.OrderFailedEvent;
+import com.app.notification.event.OrderCancelledEvent;
 import com.app.notification.mapper.NotificationMapper;
 import com.app.notification.repository.NotificationRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
@@ -61,6 +62,24 @@ public class NotificationService {
 
         notification.replaceMessage(
                 notificationMapper.toFailureMessage(
+                        event,
+                        notificationProperties
+                )
+        );
+        notificationRepository.save(notification);
+    }
+
+    @Transactional
+    public void replaceWithCancellation(OrderCancelledEvent event) {
+        Notification notification = notificationRepository
+                .findByOrderId(event.orderId())
+                .orElseGet(() -> Notification.builder()
+                        .userId(event.userId())
+                        .orderId(event.orderId())
+                        .build());
+
+        notification.replaceMessage(
+                notificationMapper.toCancellationMessage(
                         event,
                         notificationProperties
                 )

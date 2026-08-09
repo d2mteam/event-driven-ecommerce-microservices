@@ -1,4 +1,4 @@
-package com.app.notification.event;
+package com.app.paymentgateway.event;
 
 public enum OrderEventType {
     ORDER_CONFIRMED,

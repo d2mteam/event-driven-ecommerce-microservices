@@ -55,6 +55,11 @@ public class Inventory {
         reservedQuantity -= quantity;
     }
 
+    public void returnToStock(int quantity) {
+        requirePositive(quantity);
+        onHandQuantity = Math.addExact(onHandQuantity, quantity);
+    }
+
     public void adjustOnHand(int delta) {
         onHandQuantity = Math.addExact(onHandQuantity, delta);
     }

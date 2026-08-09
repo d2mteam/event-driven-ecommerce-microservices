@@ -15,6 +15,9 @@ import org.springframework.validation.annotation.Validated;
 @ConfigurationProperties(prefix = "app.messaging")
 public class PaymentMessagingProperties {
 
+    @NotBlank
+    private String consumerGroupId;
+
     @Valid
     @NotNull
     private Topics topics = new Topics();
@@ -29,6 +32,9 @@ public class PaymentMessagingProperties {
 
         @NotBlank
         private String paymentEvents;
+
+        @NotBlank
+        private String orderEvents;
     }
 
     @Getter

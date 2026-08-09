@@ -4,6 +4,7 @@ import com.app.notification.event.EventVersions;
 import com.app.notification.event.OrderConfirmedEvent;
 import com.app.notification.event.OrderEventType;
 import com.app.notification.event.OrderFailedEvent;
+import com.app.notification.event.OrderCancelledEvent;
 import com.app.notification.service.NotificationService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -35,6 +36,14 @@ public class OrderEventListener {
             consumeOrderFailed(eventJson);
             return;
         }
+        if (OrderEventType.ORDER_CANCELLED.name().equals(eventType)) {
+            consumeOrderCancelled(eventJson);
+            return;
+        }
+        if (OrderEventType.ORDER_CANCELLATION_REQUESTED.name()
+                .equals(eventType)) {
+            return;
+        }
         throw invalidEvent("Unknown order event type: " + eventType);
     }
 
@@ -61,6 +70,20 @@ public class OrderEventListener {
             );
         }
         notificationService.replaceWithFailure(event);
+    }
+
+    private void consumeOrderCancelled(JsonNode eventJson) {
+        OrderCancelledEvent event = readEvent(
+                eventJson,
+                OrderCancelledEvent.class
+        );
+        if (event.eventVersion() != EventVersions.ORDER_CANCELLED) {
+            throw invalidEvent(
+                    "Unsupported OrderCancelledEvent version: "
+                            + event.eventVersion()
+            );
+        }
+        notificationService.replaceWithCancellation(event);
     }
 
     private JsonNode readEvent(String payload) {

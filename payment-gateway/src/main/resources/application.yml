@@ -17,6 +17,12 @@ spring:
       acks: all
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      ack-mode: record
     properties:
       request.timeout.ms: 10000
       default.api.timeout.ms: 10000
@@ -33,12 +39,23 @@ app:
     sweep-batch-size: "${PAYMENT_SWEEP_BATCH_SIZE:50}"
     max-sweep-batches-per-run: "${PAYMENT_MAX_SWEEP_BATCHES_PER_RUN:10}"
   messaging:
+    consumer-group-id: "${PAYMENT_KAFKA_GROUP_ID:payment-gateway}"
     topics:
       payment-events: "${PAYMENT_EVENTS_TOPIC:payment.events}"
+      order-events: "${ORDER_EVENTS_TOPIC:order.events}"
     topic:
       partitions: "${KAFKA_TOPIC_PARTITIONS:3}"
       replication-factor: "${KAFKA_TOPIC_REPLICATION_FACTOR:1}"
       min-in-sync-replicas: "${KAFKA_TOPIC_MIN_IN_SYNC_REPLICAS:1}"
+  kafka:
+    retry:
+      max-attempts: "${KAFKA_CONSUMER_MAX_ATTEMPTS:10}"
+      initial-interval: "${KAFKA_CONSUMER_RETRY_INITIAL_INTERVAL:1s}"
+      multiplier: "${KAFKA_CONSUMER_RETRY_MULTIPLIER:2.0}"
+      max-interval: "${KAFKA_CONSUMER_RETRY_MAX_INTERVAL:30s}"
+      dead-letter-topic: "${PAYMENT_ORDER_DLT_TOPIC:order.events.payment-gateway.DLT}"
+      partitions: "${KAFKA_TOPIC_PARTITIONS:3}"
+      replication-factor: "${KAFKA_TOPIC_REPLICATION_FACTOR:1}"
   outbox:
     initial-delay: "${PAYMENT_OUTBOX_INITIAL_DELAY:2s}"
     fixed-delay: "${PAYMENT_OUTBOX_FIXED_DELAY:1s}"

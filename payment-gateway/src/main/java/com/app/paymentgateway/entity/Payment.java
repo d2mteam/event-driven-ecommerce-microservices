@@ -106,4 +106,18 @@ public class Payment {
         completedAt = expiredAt;
         return true;
     }
+
+    public boolean refund() {
+        if (status == PaymentStatus.REFUNDED) {
+            return false;
+        }
+        if (status != PaymentStatus.SUCCEEDED) {
+            throw new IllegalStateException(
+                    "Only succeeded payments can be refunded"
+            );
+        }
+
+        status = PaymentStatus.REFUNDED;
+        return true;
+    }
 }

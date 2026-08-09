@@ -5,6 +5,7 @@ import com.app.notification.event.OrderConfirmedEvent;
 import com.app.notification.event.OrderEventType;
 import com.app.notification.event.OrderFailedEvent;
 import com.app.notification.event.OrderItem;
+import com.app.notification.event.OrderCancelledEvent;
 import com.app.notification.service.NotificationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -65,6 +66,23 @@ class OrderEventListenerTest {
         listener.consume(objectMapper.writeValueAsString(event));
 
         verify(notificationService).replaceWithFailure(event);
+    }
+
+    @Test
+    void consumesSupportedOrderCancelledEvent() throws Exception {
+        OrderCancelledEvent event = new OrderCancelledEvent(
+                UUID.fromString("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"),
+                EventVersions.ORDER_CANCELLED,
+                OrderEventType.ORDER_CANCELLED,
+                UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+                UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc"),
+                42L,
+                Instant.parse("2026-08-04T05:00:00Z")
+        );
+
+        listener.consume(objectMapper.writeValueAsString(event));
+
+        verify(notificationService).replaceWithCancellation(event);
     }
 
     @Test

@@ -56,6 +56,23 @@ class OrderEventConsumerTest {
     }
 
     @Test
+    void consumesSupportedOrderCancelledEvent() throws Exception {
+        OrderCancelledEvent event = new OrderCancelledEvent(
+                UUID.randomUUID(),
+                EventVersions.ORDER_CANCELLED,
+                OrderEventType.ORDER_CANCELLED,
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                42L,
+                Instant.parse("2026-08-04T05:00:00Z")
+        );
+
+        consumer.consume(objectMapper.writeValueAsString(event));
+
+        verify(reservationService).returnCancelledOrder(event);
+    }
+
+    @Test
     void rejectsMalformedJsonWithoutCallingTheService() {
         assertThatThrownBy(() -> consumer.consume("{not-json"))
                 .isInstanceOf(NonRetryableOrderEventException.class)

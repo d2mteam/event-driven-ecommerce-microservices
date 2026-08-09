@@ -24,6 +24,7 @@ import com.app.inventory.exception.InventoryEventConflictException;
 import com.app.inventory.mapper.InventoryReservationMapper;
 import com.app.inventory.messaging.OrderConfirmedEvent;
 import com.app.inventory.messaging.OrderFailedEvent;
+import com.app.inventory.messaging.OrderCancelledEvent;
 import com.app.inventory.repository.InventoryRepository;
 import com.app.inventory.repository.InventoryReservationRepository;
 import com.app.inventory.service.InventoryOutboxWriter;
@@ -195,6 +196,52 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
         } catch (IllegalArgumentException | IllegalStateException exception) {
             throw new InventoryEventConflictException(
                     "Cannot release reservation " + event.reservationId(),
+                    exception
+            );
+        }
+    }
+
+    @Override
+    @Transactional
+    public void returnCancelledOrder(OrderCancelledEvent event) {
+        InventoryReservation reservation = reservationRepository
+                .findByIdForUpdate(event.reservationId())
+                .orElse(null);
+
+        if (reservation == null) {
+            throw new InventoryEventConflictException(
+                    "Reservation not found: " + event.reservationId()
+            );
+        }
+        if (!reservation.getOrderId().equals(event.orderId())) {
+            throw new InventoryEventConflictException(
+                    "Reservation does not belong to the event order"
+            );
+        }
+        if (reservation.getStatus() == ReservationStatus.RETURNED) {
+            return;
+        }
+        if (reservation.getStatus() != ReservationStatus.SETTLED) {
+            throw new InventoryEventConflictException(
+                    "Cannot return reservation in status "
+                            + reservation.getStatus()
+            );
+        }
+
+        try {
+            Map<Long, Inventory> inventoryByProductId =
+                    lockInventories(reservation.getItems());
+            for (ReservationItem item : reservation.getItems()) {
+                inventoryByProductId.get(item.productId())
+                        .returnToStock(item.quantity());
+            }
+            stockFilter.refreshAfterCommit(
+                    availabilitySnapshot(inventoryByProductId)
+            );
+            reservation.markReturned();
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            throw new InventoryEventConflictException(
+                    "Cannot return reservation " + event.reservationId(),
                     exception
             );
         }

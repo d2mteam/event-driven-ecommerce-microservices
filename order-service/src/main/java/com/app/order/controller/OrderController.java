@@ -7,6 +7,7 @@ import com.app.order.dto.PageResponse;
 import com.app.order.dto.PaymentResponse;
 import com.app.order.service.IdempotentOrderService;
 import com.app.order.service.OrderPaymentService;
+import com.app.order.service.OrderCancellationService;
 import com.app.order.service.OrderQueryService;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
@@ -37,6 +38,7 @@ public class OrderController {
     private final IdempotentOrderService idempotentOrderService;
     private final OrderQueryService orderQueryService;
     private final OrderPaymentService orderPaymentService;
+    private final OrderCancellationService orderCancellationService;
 
     @GetMapping("/{orderId}")
     public OrderResponse findById(
@@ -82,5 +84,15 @@ public class OrderController {
             @PathVariable UUID orderId
     ) {
         return orderPaymentService.create(userId, orderId);
+    }
+
+    @PostMapping("/{orderId}/cancel")
+    public ResponseEntity<OrderResponse> cancel(
+            @RequestHeader(ApiHeaders.USER_ID) UUID userId,
+            @PathVariable UUID orderId
+    ) {
+        return ResponseEntity.accepted().body(
+                orderCancellationService.request(userId, orderId)
+        );
     }
 }

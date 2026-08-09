@@ -2,7 +2,9 @@ package com.app.order.messaging;
 
 import com.app.order.event.EventVersions;
 import com.app.order.event.PaymentResultEvent;
+import com.app.order.event.PaymentEventType;
 import com.app.order.model.PaymentResultOutcome;
+import com.app.order.service.OrderCancellationService;
 import com.app.order.service.OrderPersistenceService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,6 +20,7 @@ public class PaymentEventListener {
 
     private final ObjectMapper objectMapper;
     private final OrderPersistenceService persistenceService;
+    private final OrderCancellationService cancellationService;
 
     @KafkaListener(
             topics = "${app.kafka.topics.payment-events}",
@@ -27,8 +30,10 @@ public class PaymentEventListener {
         PaymentResultEvent event = readEvent(payload);
         validate(event);
 
-        PaymentResultOutcome outcome =
-                persistenceService.applyPaymentResult(event);
+        PaymentResultOutcome outcome = event.eventType()
+                == PaymentEventType.PAYMENT_REFUNDED
+                ? cancellationService.completeRefund(event)
+                : persistenceService.applyPaymentResult(event);
 
         if (outcome == PaymentResultOutcome.INVARIANT_VIOLATION) {
             throw invalidEvent(

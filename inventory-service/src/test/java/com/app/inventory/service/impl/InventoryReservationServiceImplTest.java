@@ -26,6 +26,7 @@ import com.app.inventory.messaging.EventVersions;
 import com.app.inventory.messaging.OrderConfirmedEvent;
 import com.app.inventory.messaging.OrderEventType;
 import com.app.inventory.messaging.OrderFailedEvent;
+import com.app.inventory.messaging.OrderCancelledEvent;
 import com.app.inventory.repository.InventoryRepository;
 import com.app.inventory.repository.InventoryReservationRepository;
 import com.app.inventory.service.InventoryOutboxWriter;
@@ -148,6 +149,30 @@ class InventoryReservationServiceImplTest {
         verifyNoInteractions(inventoryRepository);
     }
 
+    @Test
+    void returnsSettledReservationToStockOnlyOnce() {
+        InventoryReservation reservation = heldReservation(
+                List.of(new ReservationItem(1L, 2))
+        );
+        reservation.settle();
+        Inventory inventory = inventory(1L, 0);
+        OrderCancelledEvent event = cancelledEvent(reservation.getOrderId());
+        when(reservationRepository.findByIdForUpdate(42L))
+                .thenReturn(Optional.of(reservation));
+        when(inventoryRepository.findAllByProductIdForUpdate(List.of(1L)))
+                .thenReturn(List.of(inventory));
+
+        service.returnCancelledOrder(event);
+
+        assertThat(inventory.getOnHandQuantity()).isEqualTo(12);
+        assertThat(inventory.getReservedQuantity()).isZero();
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.RETURNED);
+
+        service.returnCancelledOrder(event);
+
+        assertThat(inventory.getOnHandQuantity()).isEqualTo(12);
+    }
+
     private InventoryReservation heldReservation(List<ReservationItem> items) {
         Instant createdAt = Instant.parse("2026-08-04T00:00:00Z");
         return InventoryReservation.held(
@@ -190,6 +215,18 @@ class InventoryReservationServiceImplTest {
                 42L,
                 "PAYMENT_FAILED",
                 Instant.parse("2026-08-04T04:00:00Z")
+        );
+    }
+
+    private OrderCancelledEvent cancelledEvent(UUID orderId) {
+        return new OrderCancelledEvent(
+                UUID.randomUUID(),
+                EventVersions.ORDER_CANCELLED,
+                OrderEventType.ORDER_CANCELLED,
+                orderId,
+                UUID.randomUUID(),
+                42L,
+                Instant.parse("2026-08-04T05:00:00Z")
         );
     }
 }

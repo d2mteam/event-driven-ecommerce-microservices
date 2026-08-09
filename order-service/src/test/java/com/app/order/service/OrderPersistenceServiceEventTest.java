@@ -1,8 +1,6 @@
 package com.app.order.service;
 
-import com.app.order.config.KafkaMessagingProperties;
 import com.app.order.entity.Order;
-import com.app.order.entity.OutboxMessage;
 import com.app.order.event.EventVersions;
 import com.app.order.event.InventoryEventType;
 import com.app.order.event.PaymentEventType;
@@ -13,15 +11,11 @@ import com.app.order.model.OrderFailureReason;
 import com.app.order.model.OrderStatus;
 import com.app.order.model.PaymentResultOutcome;
 import com.app.order.model.ReservationExpirationOutcome;
-import com.app.order.repository.OrderIdempotencyRepository;
 import com.app.order.repository.OrderRepository;
-import com.app.order.repository.OutboxMessageRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
@@ -46,29 +40,13 @@ class OrderPersistenceServiceEventTest {
     private OrderRepository orderRepository;
 
     @Mock
-    private OrderIdempotencyRepository idempotencyRepository;
-
-    @Mock
-    private OutboxMessageRepository outboxMessageRepository;
-
-    @Mock
     private OrderMapper orderMapper;
 
-    @Spy
-    private ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
-
-    @Spy
-    private KafkaMessagingProperties messagingProperties = messagingProperties();
+    @Mock
+    private OrderOutboxWriter outboxWriter;
 
     @InjectMocks
     private OrderPersistenceService persistenceService;
-
-    private static KafkaMessagingProperties messagingProperties() {
-        KafkaMessagingProperties messagingProperties =
-                new KafkaMessagingProperties();
-        messagingProperties.getTopics().setOrderEvents("order.events");
-        return messagingProperties;
-    }
 
     @Test
     void appliesPaymentResultAndCreatesOutboxMessage() {
@@ -84,7 +62,7 @@ class OrderPersistenceServiceEventTest {
 
         assertThat(outcome).isEqualTo(PaymentResultOutcome.APPLIED);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
-        verify(outboxMessageRepository).save(any(OutboxMessage.class));
+        verify(outboxWriter).add(any(), any());
     }
 
     @Test
@@ -97,7 +75,7 @@ class OrderPersistenceServiceEventTest {
                 persistenceService.applyPaymentResult(paymentSucceeded());
 
         assertThat(outcome).isEqualTo(PaymentResultOutcome.DUPLICATE);
-        verify(outboxMessageRepository, never()).save(any());
+        verify(outboxWriter, never()).add(any(), any());
     }
 
     @Test
@@ -120,7 +98,7 @@ class OrderPersistenceServiceEventTest {
 
         assertThat(outcome)
                 .isEqualTo(PaymentResultOutcome.INVARIANT_VIOLATION);
-        verify(outboxMessageRepository, never()).save(any());
+        verify(outboxWriter, never()).add(any(), any());
     }
 
     @Test
@@ -140,7 +118,7 @@ class OrderPersistenceServiceEventTest {
                 persistenceService.failExpiredReservation(event);
 
         assertThat(outcome).isEqualTo(ReservationExpirationOutcome.ORPHAN);
-        verify(outboxMessageRepository, never()).save(any());
+        verify(outboxWriter, never()).add(any(), any());
     }
 
     private Order order(

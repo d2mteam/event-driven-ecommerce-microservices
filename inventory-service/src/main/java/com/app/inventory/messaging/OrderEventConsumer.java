@@ -33,6 +33,14 @@ public class OrderEventConsumer {
             consumeOrderFailed(eventJson);
             return;
         }
+        if (OrderEventType.ORDER_CANCELLED.name().equals(eventType)) {
+            consumeOrderCancelled(eventJson);
+            return;
+        }
+        if (OrderEventType.ORDER_CANCELLATION_REQUESTED.name()
+                .equals(eventType)) {
+            return;
+        }
         throw invalidEvent("Unknown order event type: " + eventType);
     }
 
@@ -61,6 +69,21 @@ public class OrderEventConsumer {
         }
 
         reservationService.releaseFailedOrder(event);
+    }
+
+    private void consumeOrderCancelled(JsonNode eventJson) {
+        OrderCancelledEvent event = readEvent(
+                eventJson,
+                OrderCancelledEvent.class
+        );
+        if (event.eventVersion() != EventVersions.ORDER_CANCELLED) {
+            throw invalidEvent(
+                    "Unsupported OrderCancelledEvent version: "
+                            + event.eventVersion()
+            );
+        }
+
+        reservationService.returnCancelledOrder(event);
     }
 
     private JsonNode readEvent(String payload) {

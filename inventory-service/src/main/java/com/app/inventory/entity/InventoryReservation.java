@@ -92,4 +92,13 @@ public class InventoryReservation {
             status = ReservationStatus.EXPIRED;
         }
     }
+
+    public void markReturned() {
+        if (status != ReservationStatus.SETTLED) {
+            throw new IllegalStateException(
+                    "Only settled reservations can be returned"
+            );
+        }
+        status = ReservationStatus.RETURNED;
+    }
 }

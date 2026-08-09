@@ -28,6 +28,11 @@ spring:
               predicates:
                 - Path=/api/admin/inventory/**
                 - Method=POST
+            - id: order-admin-service
+              uri: "${ORDER_SERVICE_URL:http://localhost:8082}"
+              predicates:
+                - Path=/api/admin/orders,/api/admin/orders/**
+                - Method=GET
             - id: order-service
               uri: "${ORDER_SERVICE_URL:http://localhost:8082}"
               predicates:

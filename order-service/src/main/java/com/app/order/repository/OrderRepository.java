@@ -1,6 +1,7 @@
 package com.app.order.repository;
 
 import com.app.order.entity.Order;
+import com.app.order.model.OrderStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Lock;
@@ -16,6 +17,16 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
 
     Page<Order> findAllByUserIdOrderByCreatedAtDesc(
             UUID userId,
+            Pageable pageable
+    );
+
+    Page<Order> findAllByUserId(UUID userId, Pageable pageable);
+
+    Page<Order> findAllByStatus(OrderStatus status, Pageable pageable);
+
+    Page<Order> findAllByUserIdAndStatus(
+            UUID userId,
+            OrderStatus status,
             Pageable pageable
     );
 

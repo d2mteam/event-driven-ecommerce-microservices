@@ -28,10 +28,20 @@ import java.util.Objects;
 @Entity
 @Table(
         name = "orders",
-        indexes = @Index(
-                name = "idx_orders_user_created_at",
-                columnList = "user_id, created_at"
-        )
+        indexes = {
+                @Index(
+                        name = "idx_orders_user_created_at",
+                        columnList = "user_id, created_at"
+                ),
+                @Index(
+                        name = "idx_orders_status_created_at",
+                        columnList = "status, created_at"
+                ),
+                @Index(
+                        name = "idx_orders_created_at",
+                        columnList = "created_at"
+                )
+        }
 )
 @Getter
 @Setter

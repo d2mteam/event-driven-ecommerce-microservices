@@ -23,6 +23,11 @@ spring:
               predicates:
                 - Path=/api/cart,/api/cart/**
                 - Method=GET,PUT,DELETE
+            - id: notification-service
+              uri: "${NOTIFICATION_SERVICE_URL:http://localhost:8084}"
+              predicates:
+                - Path=/api/notifications,/api/notifications/**
+                - Method=GET
             - id: product-admin-service
               uri: "${PRODUCT_SERVICE_URL:http://localhost:8081}"
               predicates:

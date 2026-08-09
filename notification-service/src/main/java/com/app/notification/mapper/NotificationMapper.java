@@ -1,6 +1,7 @@
 package com.app.notification.mapper;
 
 import com.app.notification.config.NotificationProperties;
+import com.app.notification.dto.NotificationResponse;
 import com.app.notification.entity.Notification;
 import com.app.notification.event.OrderConfirmedEvent;
 import com.app.notification.event.OrderFailedEvent;
@@ -11,6 +12,8 @@ import org.mapstruct.MappingConstants;
 
 @Mapper(componentModel = MappingConstants.ComponentModel.SPRING)
 public interface NotificationMapper {
+
+    NotificationResponse toResponse(Notification notification);
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "createdAt", ignore = true)

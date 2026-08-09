@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
@@ -20,6 +21,10 @@ import java.util.UUID;
 @Entity
 @Table(
         name = "notifications",
+        indexes = @Index(
+                name = "idx_notifications_user_created",
+                columnList = "user_id, created_at, id"
+        ),
         uniqueConstraints = @UniqueConstraint(
                 name = "uk_notifications_order_id",
                 columnNames = "order_id"

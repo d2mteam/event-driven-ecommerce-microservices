@@ -7,6 +7,7 @@ public record AdminProductResponse(
         Long id,
         Long sourceProductId,
         String name,
+        String category,
         BigDecimal price,
         String bulletPoints,
         String description,

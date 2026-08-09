@@ -100,3 +100,9 @@ VALUES
      '{"brand":"LEGO","category":"Toy","pieces":"1642","recommendedAge":"18+"}'),
     (50, 'Nintendo Switch OLED', 8990000,
      '{"brand":"Nintendo","category":"Gaming","storage":"64GB","display":"7 inch OLED"}');
+
+UPDATE products
+SET category = JSON_UNQUOTE(JSON_EXTRACT(attributes, '$.category'))
+WHERE category IS NULL
+  AND id BETWEEN 1 AND 50
+  AND JSON_EXTRACT(attributes, '$.category') IS NOT NULL;

@@ -18,7 +18,11 @@ public interface ProductService {
 
     List<ProductResponse> getProductsByIds(Collection<Long> ids);
 
-    PageResponse<ProductResponse> searchProducts(String name, Pageable pageable);
+    PageResponse<ProductResponse> searchProducts(
+            String name,
+            String category,
+            Pageable pageable
+    );
 
     PageResponse<ProductResponse> getAdminProducts(
             ProductStatus status,

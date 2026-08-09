@@ -22,6 +22,7 @@ public class ProductResponse implements Serializable {
 
     private Long id;
     private String name;
+    private String category;
     private BigDecimal price;
     private Map<String, String> attributes;
     private ProductStatus status;

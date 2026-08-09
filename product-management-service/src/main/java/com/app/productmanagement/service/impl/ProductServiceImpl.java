@@ -79,11 +79,19 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public PageResponse<ProductResponse> searchProducts(String name, Pageable pageable) {
+    public PageResponse<ProductResponse> searchProducts(
+            String name,
+            String category,
+            Pageable pageable
+    ) {
+        String normalizedName = name == null || name.isBlank() ? null : name.trim();
+        String normalizedCategory = category == null || category.isBlank()
+                ? null
+                : category.trim();
         Page<ProductResponse> products = productRepository
-                .findByStatusAndNameContainingIgnoreCase(
-                        ProductStatus.ACTIVE,
-                        name,
+                .searchActiveProducts(
+                        normalizedName,
+                        normalizedCategory,
                         pageable
                 )
                 .map(productMapper::toResponse);
@@ -130,7 +138,11 @@ public class ProductServiceImpl implements ProductService {
                 ? null
                 : query.trim();
         Page<ProductResponse> products = productRepository
-                .findAdminProducts(status, normalizedQuery, stablePageable)
+                .findAdminProducts(
+                        status == null ? null : status.name(),
+                        normalizedQuery,
+                        stablePageable
+                )
                 .map(productMapper::toResponse);
         return PageResponse.from(products);
     }

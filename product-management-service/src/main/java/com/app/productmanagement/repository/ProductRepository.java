@@ -20,20 +20,60 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     List<Product> findAllByIdInAndStatus(Collection<Long> ids, ProductStatus status);
 
-    Page<Product> findByStatusAndNameContainingIgnoreCase(
-            ProductStatus status,
-            String name,
+    @Query(
+            value = """
+                    select product.*
+                    from products product
+                    where product.status = 'ACTIVE'
+                      and (
+                          :name is null
+                          or match(product.name) against (:name in natural language mode)
+                      )
+                      and (:category is null or product.category = :category)
+                    """,
+            countQuery = """
+                    select count(*)
+                    from products product
+                    where product.status = 'ACTIVE'
+                      and (
+                          :name is null
+                          or match(product.name) against (:name in natural language mode)
+                      )
+                      and (:category is null or product.category = :category)
+                    """,
+            nativeQuery = true
+    )
+    Page<Product> searchActiveProducts(
+            @Param("name") String name,
+            @Param("category") String category,
             Pageable pageable
     );
 
-    @Query("""
-            select product
-            from Product product
-            where (:status is null or product.status = :status)
-              and (:query is null or lower(product.name) like lower(concat('%', :query, '%')))
-            """)
+    @Query(
+            value = """
+                    select product.*
+                    from products product
+                    where (:status is null or product.status = :status)
+                      and (
+                          :query is null
+                          or match(product.name) against (:query in natural language mode)
+                          or product.category = :query
+                      )
+                    """,
+            countQuery = """
+                    select count(*)
+                    from products product
+                    where (:status is null or product.status = :status)
+                      and (
+                          :query is null
+                          or match(product.name) against (:query in natural language mode)
+                          or product.category = :query
+                      )
+                    """,
+            nativeQuery = true
+    )
     Page<Product> findAdminProducts(
-            @Param("status") ProductStatus status,
+            @Param("status") String status,
             @Param("query") String query,
             Pageable pageable
     );

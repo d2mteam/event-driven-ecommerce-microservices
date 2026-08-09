@@ -43,9 +43,10 @@ public class ProductController {
 
     @GetMapping("/search")
     public PageResponse<ProductResponse> searchProducts(
-            @RequestParam String name,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String category,
             @PageableDefault(size = 10, sort = "id") Pageable pageable
     ) {
-        return productService.searchProducts(name, pageable);
+        return productService.searchProducts(name, category, pageable);
     }
 }

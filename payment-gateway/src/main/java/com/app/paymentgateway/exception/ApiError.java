@@ -1,4 +1,4 @@
-package com.app.paymentgateway.controller;
+package com.app.paymentgateway.exception;
 
 import java.time.Instant;
 

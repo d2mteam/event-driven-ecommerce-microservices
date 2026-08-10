@@ -1,4 +1,4 @@
-package com.app.order.controller;
+package com.app.order.exception;
 
 import java.time.Instant;
 

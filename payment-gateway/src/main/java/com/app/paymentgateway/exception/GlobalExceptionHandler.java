@@ -1,7 +1,4 @@
-package com.app.paymentgateway.controller;
-
-import com.app.paymentgateway.exception.PaymentConflictException;
-import com.app.paymentgateway.exception.PaymentNotFoundException;
+package com.app.paymentgateway.exception;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
@@ -18,7 +15,7 @@ import java.time.Instant;
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
-public class PaymentExceptionHandler {
+public class GlobalExceptionHandler {
 
     @ExceptionHandler(PaymentNotFoundException.class)
     public ResponseEntity<ApiError> handleNotFound(

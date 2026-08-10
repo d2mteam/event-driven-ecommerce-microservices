@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
-public class InventoryExceptionHandler {
+public class GlobalExceptionHandler {
 
     private static final URI INVENTORY_CONFLICT_TYPE = URI.create("urn:problem:inventory-conflict");
 

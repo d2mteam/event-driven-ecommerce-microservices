@@ -12,7 +12,7 @@ import java.time.Instant;
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
-public class AuthExceptionHandler {
+public class GlobalExceptionHandler {
 
     @ExceptionHandler(InvalidCredentialsException.class)
     public ResponseEntity<ApiError> handleInvalidCredentials(

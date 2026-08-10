@@ -13,7 +13,7 @@ import com.app.paymentgateway.event.PaymentEventType;
 import com.app.paymentgateway.event.PaymentResultEvent;
 import com.app.paymentgateway.exception.PaymentConflictException;
 import com.app.paymentgateway.exception.PaymentNotFoundException;
-import com.app.paymentgateway.model.MockPaymentResult;
+import com.app.paymentgateway.mapper.PaymentMapper;
 import com.app.paymentgateway.model.PaymentOutboxStatus;
 import com.app.paymentgateway.model.PaymentStatus;
 import com.app.paymentgateway.repository.PaymentOutboxMessageRepository;
@@ -37,13 +37,12 @@ import java.util.UUID;
 @Slf4j
 public class PaymentService {
 
-    private static final String PAYMENT_PATH = "/api/payments/";
-
     private final PaymentRepository paymentRepository;
     private final PaymentOutboxMessageRepository outboxRepository;
     private final PaymentProperties paymentProperties;
     private final PaymentMessagingProperties messagingProperties;
     private final ObjectMapper objectMapper;
+    private final PaymentMapper paymentMapper;
 
     public PaymentResponse create(CreatePaymentRequest request) {
         Optional<Payment> existing = paymentRepository.findByOrderId(
@@ -62,7 +61,10 @@ public class PaymentService {
         );
 
         try {
-            return toResponse(paymentRepository.saveAndFlush(payment));
+            return paymentMapper.toResponse(
+                    paymentRepository.saveAndFlush(payment),
+                    paymentProperties
+            );
         } catch (DataIntegrityViolationException exception) {
             Payment winner = paymentRepository
                     .findByOrderId(request.orderId())
@@ -73,7 +75,10 @@ public class PaymentService {
 
     @Transactional(readOnly = true)
     public PaymentResponse findById(Long paymentId) {
-        return toResponse(findPayment(paymentId));
+        return paymentMapper.toResponse(
+                findPayment(paymentId),
+                paymentProperties
+        );
     }
 
     @Transactional
@@ -84,10 +89,10 @@ public class PaymentService {
         Payment payment = paymentRepository
                 .findByIdForUpdate(paymentId)
                 .orElseThrow(() -> new PaymentNotFoundException(paymentId));
-        PaymentStatus result = toStatus(request.result());
+        PaymentStatus result = paymentMapper.toStatus(request.result());
 
         if (payment.getStatus() == result) {
-            return toResponse(payment);
+            return paymentMapper.toResponse(payment, paymentProperties);
         }
         if (payment.getStatus() != PaymentStatus.PENDING) {
             throw terminalConflict(payment);
@@ -102,7 +107,7 @@ public class PaymentService {
 
         payment.complete(result, completedAt);
         saveResultEvent(payment, eventTypeFor(result), completedAt);
-        return toResponse(payment);
+        return paymentMapper.toResponse(payment, paymentProperties);
     }
 
     public int expirePendingPaymentsBatch(Instant expiredAt, int batchSize) {
@@ -184,14 +189,7 @@ public class PaymentService {
                             + " already has a payment with a different amount"
             );
         }
-        return toResponse(payment);
-    }
-
-    private PaymentStatus toStatus(MockPaymentResult result) {
-        return switch (result) {
-            case SUCCEEDED -> PaymentStatus.SUCCEEDED;
-            case FAILED -> PaymentStatus.FAILED;
-        };
+        return paymentMapper.toResponse(payment, paymentProperties);
     }
 
     private PaymentEventType eventTypeFor(PaymentStatus status) {
@@ -250,22 +248,4 @@ public class PaymentService {
         }
     }
 
-    private PaymentResponse toResponse(Payment payment) {
-        return new PaymentResponse(
-                payment.getId(),
-                payment.getOrderId(),
-                payment.getAmount(),
-                payment.getStatus(),
-                payment.getExpiresAt(),
-                paymentUrl(payment.getId())
-        );
-    }
-
-    private String paymentUrl(Long paymentId) {
-        String baseUrl = paymentProperties.publicBaseUrl();
-        if (baseUrl.endsWith("/")) {
-            baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
-        }
-        return baseUrl + PAYMENT_PATH + paymentId + "/mock";
-    }
 }

@@ -9,6 +9,7 @@ import org.mapstruct.Mapping;
 import org.mapstruct.MappingConstants;
 
 import java.util.List;
+import java.util.Map;
 
 @Mapper(componentModel = MappingConstants.ComponentModel.SPRING)
 public interface AdminCatalogMapper {
@@ -32,4 +33,17 @@ public interface AdminCatalogMapper {
             PageResponse<AdminProductResponse> productPage,
             List<AdminCatalogItemResponse> items
     );
+
+    default PageResponse<AdminCatalogItemResponse> toPage(
+            PageResponse<AdminProductResponse> productPage,
+            Map<Long, InventorySummaryResponse> inventoryByProductId
+    ) {
+        List<AdminCatalogItemResponse> items = productPage.content().stream()
+                .map(product -> toItem(
+                        product,
+                        inventoryByProductId.get(product.id())
+                ))
+                .toList();
+        return toPage(productPage, items);
+    }
 }

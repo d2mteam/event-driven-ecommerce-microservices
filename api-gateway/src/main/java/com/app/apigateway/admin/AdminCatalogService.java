@@ -40,7 +40,10 @@ public class AdminCatalogService {
         return productClient.findProducts(page, size, sort, status, name, category)
                 .flatMap(productPage -> {
                     if (productPage.content().isEmpty()) {
-                        return Mono.just(toResponse(productPage, Map.of()));
+                        return Mono.just(catalogMapper.toPage(
+                                productPage,
+                                Map.of()
+                        ));
                     }
 
                     LinkedHashSet<Long> productIds = productPage.content().stream()
@@ -54,20 +57,10 @@ public class AdminCatalogService {
                                     )
                             ))
                             .map(inventoryByProductId ->
-                                    toResponse(productPage, inventoryByProductId));
+                                    catalogMapper.toPage(
+                                            productPage,
+                                            inventoryByProductId
+                                    ));
                 });
-    }
-
-    private PageResponse<AdminCatalogItemResponse> toResponse(
-            PageResponse<AdminProductResponse> productPage,
-            Map<Long, InventorySummaryResponse> inventoryByProductId
-    ) {
-        var content = productPage.content().stream()
-                .map(product -> catalogMapper.toItem(
-                        product,
-                        inventoryByProductId.get(product.id())
-                ))
-                .toList();
-        return catalogMapper.toPage(productPage, content);
     }
 }

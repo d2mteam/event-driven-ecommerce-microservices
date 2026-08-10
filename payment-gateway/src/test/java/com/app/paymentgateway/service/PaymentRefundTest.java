@@ -6,6 +6,7 @@ import com.app.paymentgateway.entity.Payment;
 import com.app.paymentgateway.entity.PaymentOutboxMessage;
 import com.app.paymentgateway.event.OrderCancellationRequestedEvent;
 import com.app.paymentgateway.event.OrderEventType;
+import com.app.paymentgateway.mapper.PaymentMapper;
 import com.app.paymentgateway.model.PaymentStatus;
 import com.app.paymentgateway.repository.PaymentOutboxMessageRepository;
 import com.app.paymentgateway.repository.PaymentRepository;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mapstruct.factory.Mappers;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -80,7 +82,8 @@ class PaymentRefundTest {
                         10
                 ),
                 messaging,
-                new ObjectMapper().findAndRegisterModules()
+                new ObjectMapper().findAndRegisterModules(),
+                Mappers.getMapper(PaymentMapper.class)
         );
     }
 

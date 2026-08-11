@@ -74,6 +74,24 @@ security:
   app:
     jwt-public-key: "${JWT_PUBLIC_KEY:classpath:jwt-public.pem}"
 
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        record-exceptions:
+          - org.springframework.web.server.ResponseStatusException
+    instances:
+      admin-product-service:
+        base-config: default
+      admin-inventory-service:
+        base-config: default
+
 management:
   endpoints:
     web:

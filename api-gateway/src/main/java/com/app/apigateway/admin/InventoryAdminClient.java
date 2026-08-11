@@ -1,6 +1,7 @@
 package com.app.apigateway.admin;
 
 import com.app.apigateway.admin.dto.InventorySummaryResponse;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatus;
@@ -30,6 +31,7 @@ public class InventoryAdminClient {
         this.timeout = timeout;
     }
 
+    @CircuitBreaker(name = "admin-inventory-service")
     public Mono<List<InventorySummaryResponse>> findAll(Set<Long> productIds) {
         return webClient.post()
                 .uri("/internal/inventory/batch")

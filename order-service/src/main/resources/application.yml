@@ -64,5 +64,25 @@ app:
     retry-max-delay: "${OUTBOX_RELAY_RETRY_MAX_DELAY:60s}"
     alert-after-attempts: "${OUTBOX_RELAY_ALERT_AFTER_ATTEMPTS:10}"
 
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        record-exceptions:
+          - com.app.order.exception.DownstreamServiceException
+    instances:
+      product-service:
+        base-config: default
+      inventory-service:
+        base-config: default
+      payment-service:
+        base-config: default
+
 server:
   port: 8082

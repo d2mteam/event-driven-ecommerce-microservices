@@ -2,6 +2,7 @@ package com.app.apigateway.admin;
 
 import com.app.apigateway.admin.dto.AdminProductResponse;
 import com.app.apigateway.admin.dto.PageResponse;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatus;
@@ -29,6 +30,7 @@ public class ProductAdminClient {
         this.timeout = timeout;
     }
 
+    @CircuitBreaker(name = "admin-product-service")
     public Mono<PageResponse<AdminProductResponse>> findProducts(
             int page,
             int size,

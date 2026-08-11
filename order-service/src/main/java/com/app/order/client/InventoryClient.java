@@ -3,6 +3,7 @@ package com.app.order.client;
 import com.app.order.config.RestClientConfig;
 import com.app.order.exception.DownstreamServiceException;
 import com.app.order.exception.InventoryConflictException;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -26,6 +27,7 @@ public class InventoryClient {
 
     /** Trả về reservation đã kiểm tra: đúng orderId đã gửi, trạng thái HELD,
      *  có id và hạn giữ hàng. Caller không phải kiểm lại. */
+    @CircuitBreaker(name = "inventory-service")
     public InventoryReservationResponse reserve(
             InventoryReservationRequest request
     ) {

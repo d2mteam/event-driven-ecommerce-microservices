@@ -3,6 +3,7 @@ package com.app.order.client;
 import com.app.order.config.RestClientConfig;
 import com.app.order.exception.DownstreamServiceException;
 import com.app.order.exception.ProductNotFoundException;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
@@ -29,6 +30,7 @@ public class ProductClient {
 
     /** Trả về danh sách đã kiểm tra: đủ mọi productId đã hỏi, và mỗi phần tử có
      *  id/name/price hợp lệ. Caller không phải kiểm lại. */
+    @CircuitBreaker(name = "product-service")
     public List<ProductClientResponse> findProducts(List<Long> productIds) {
         try {
             List<ProductClientResponse> products = restClient.post()

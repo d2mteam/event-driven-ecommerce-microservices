@@ -3,6 +3,7 @@ package com.app.order.client;
 import com.app.order.config.RestClientConfig;
 import com.app.order.dto.PaymentResponse;
 import com.app.order.exception.DownstreamServiceException;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -21,6 +22,7 @@ public class PaymentClient {
         this.restClient = restClient;
     }
 
+    @CircuitBreaker(name = "payment-service")
     public PaymentResponse create(CreatePaymentRequest request) {
         try {
             PaymentResponse response = restClient.post()

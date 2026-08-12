@@ -24,40 +24,6 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             value = """
                     select product.*
                     from products product
-                    where product.status = 'ACTIVE'
-                      and (
-                          :name is null
-                          or match(product.name) against (:name in natural language mode)
-                      )
-                      and (:category is null or product.category = :category)
-                    order by
-                        case when :name is null then 0
-                             else match(product.name) against (:name in natural language mode)
-                        end desc,
-                        product.id asc
-                    """,
-            countQuery = """
-                    select count(*)
-                    from products product
-                    where product.status = 'ACTIVE'
-                      and (
-                          :name is null
-                          or match(product.name) against (:name in natural language mode)
-                      )
-                      and (:category is null or product.category = :category)
-                    """,
-            nativeQuery = true
-    )
-    Page<Product> searchActiveProducts(
-            @Param("name") String name,
-            @Param("category") String category,
-            Pageable pageable
-    );
-
-    @Query(
-            value = """
-                    select product.*
-                    from products product
                     where (:status is null or product.status = :status)
                       and (
                           :name is null
@@ -77,7 +43,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                     """,
             nativeQuery = true
     )
-    Page<Product> findAdminProducts(
+    Page<Product> findProducts(
             @Param("status") String status,
             @Param("name") String name,
             @Param("category") String category,

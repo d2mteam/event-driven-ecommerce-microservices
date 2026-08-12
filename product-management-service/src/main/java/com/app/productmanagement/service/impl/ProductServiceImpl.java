@@ -20,6 +20,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.JpaSort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -84,21 +85,25 @@ public class ProductServiceImpl implements ProductService {
             String category,
             Pageable pageable
     ) {
-        String normalizedName = name == null || name.isBlank() ? null : name.trim();
-        String normalizedCategory = category == null || category.isBlank()
-                ? null
-                : category.trim();
-        // Thứ tự do chính câu SQL quyết định (điểm liên quan, rồi id) — bỏ sort
-        // của Pageable để không bị chèn thêm ORDER BY đè lên, chỉ giữ page/size.
-        Pageable unsorted = PageRequest.of(
+        String normalizedName = normalizeFilter(name);
+        String normalizedCategory = normalizeFilter(category);
+        Sort searchSort = normalizedName == null
+                ? Sort.by("id")
+                : JpaSort.unsafe(
+                        Sort.Direction.DESC,
+                        "match(product.name) against (:name in natural language mode)"
+                ).and(Sort.by("id"));
+        Pageable searchPageable = PageRequest.of(
                 pageable.getPageNumber(),
-                pageable.getPageSize()
+                pageable.getPageSize(),
+                searchSort
         );
         Page<ProductResponse> products = productRepository
-                .searchActiveProducts(
+                .findProducts(
+                        ProductStatus.ACTIVE.name(),
                         normalizedName,
                         normalizedCategory,
-                        unsorted
+                        searchPageable
                 )
                 .map(productMapper::toResponse);
         return PageResponse.from(products);
@@ -141,12 +146,10 @@ public class ProductServiceImpl implements ProductService {
                 stableSort
         );
 
-        String normalizedName = name == null || name.isBlank() ? null : name.trim();
-        String normalizedCategory = category == null || category.isBlank()
-                ? null
-                : category.trim();
+        String normalizedName = normalizeFilter(name);
+        String normalizedCategory = normalizeFilter(category);
         Page<ProductResponse> products = productRepository
-                .findAdminProducts(
+                .findProducts(
                         status == null ? null : status.name(),
                         normalizedName,
                         normalizedCategory,
@@ -202,5 +205,13 @@ public class ProductServiceImpl implements ProductService {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ProductNotFoundException(id));
         product.setStatus(ProductStatus.ARCHIVED);
+    }
+
+    private static String normalizeFilter(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.strip();
+        return normalized.isEmpty() ? null : normalized;
     }
 }

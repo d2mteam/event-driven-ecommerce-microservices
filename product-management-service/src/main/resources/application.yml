@@ -30,3 +30,13 @@ spring:
 
 server:
   port: 8081
+
+app:
+  cart:
+    ttl: "${CART_TTL:7d}"
+  storage:
+    endpoint: "${MINIO_ENDPOINT:http://localhost:9010}"
+    bucket: "${MINIO_BUCKET:product-images}"
+    access-key: "${MINIO_ACCESS_KEY:minioadmin}"
+    secret-key: "${MINIO_SECRET_KEY:minioadmin}"
+    presign-ttl: "${MINIO_PRESIGN_TTL:5m}"

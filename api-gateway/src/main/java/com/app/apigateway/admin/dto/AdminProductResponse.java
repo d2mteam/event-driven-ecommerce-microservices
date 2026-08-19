@@ -1,19 +1,18 @@
 package com.app.apigateway.admin.dto;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 
 public record AdminProductResponse(
         Long id,
-        Long sourceProductId,
         String name,
+        Long categoryId,
         String category,
         BigDecimal price,
-        String bulletPoints,
         String description,
-        Long productTypeId,
-        Double productLength,
         Map<String, String> attributes,
-        String status
+        String status,
+        List<String> imageUrls
 ) {
 }

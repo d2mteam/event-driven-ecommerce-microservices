@@ -35,9 +35,9 @@ public class AdminCatalogService {
             String sort,
             String status,
             String name,
-            String category
+            Long categoryId
     ) {
-        return productClient.findProducts(page, size, sort, status, name, category)
+        return productClient.findProducts(page, size, sort, status, name, categoryId)
                 .flatMap(productPage -> {
                     if (productPage.content().isEmpty()) {
                         return Mono.just(catalogMapper.toPage(

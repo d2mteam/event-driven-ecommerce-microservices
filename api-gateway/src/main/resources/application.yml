@@ -18,6 +18,11 @@ spring:
               predicates:
                 - Path=/api/products,/api/products/**
                 - Method=GET
+            - id: category-service
+              uri: "${PRODUCT_SERVICE_URL:http://localhost:8081}"
+              predicates:
+                - Path=/api/categories
+                - Method=GET
             - id: cart-service
               uri: "${PRODUCT_SERVICE_URL:http://localhost:8081}"
               predicates:
@@ -33,6 +38,16 @@ spring:
               predicates:
                 - Path=/api/admin/products,/api/admin/products/**
                 - Method=POST,PUT,DELETE
+            - id: category-admin-service
+              uri: "${PRODUCT_SERVICE_URL:http://localhost:8081}"
+              predicates:
+                - Path=/api/admin/categories,/api/admin/categories/**
+                - Method=GET,POST,PUT,DELETE
+            - id: product-image-admin-service
+              uri: "${PRODUCT_SERVICE_URL:http://localhost:8081}"
+              predicates:
+                - Path=/api/admin/product-images,/api/admin/product-images/**
+                - Method=POST
             - id: inventory-admin-service
               uri: "${INVENTORY_SERVICE_URL:http://localhost:8083}"
               predicates:
@@ -57,6 +72,7 @@ spring:
             connect-timeout: "${GATEWAY_CONNECT_TIMEOUT_MS:2000}"
             response-timeout: "${GATEWAY_RESPONSE_TIMEOUT:10s}"
           globalcors:
+            add-to-simple-url-handler-mapping: true
             cors-configurations:
               '[/**]':
                 allowedOriginPatterns: "${GATEWAY_CORS_ALLOWED_ORIGINS:*}"

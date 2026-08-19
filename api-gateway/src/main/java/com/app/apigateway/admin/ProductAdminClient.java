@@ -37,7 +37,7 @@ public class ProductAdminClient {
             String sort,
             String status,
             String name,
-            String category
+            Long categoryId
     ) {
         return webClient.get()
                 .uri(uriBuilder -> {
@@ -51,8 +51,8 @@ public class ProductAdminClient {
                     if (name != null && !name.isBlank()) {
                         uriBuilder.queryParam("name", name);
                     }
-                    if (category != null && !category.isBlank()) {
-                        uriBuilder.queryParam("category", category);
+                    if (categoryId != null) {
+                        uriBuilder.queryParam("categoryId", categoryId);
                     }
                     return uriBuilder.build();
                 })

@@ -59,11 +59,13 @@ class AdminCatalogMapperTest {
         return new AdminProductResponse(
                 id,
                 name,
+                10L,
                 "Category",
                 new BigDecimal("50000.00"),
                 "Description",
                 Map.of(),
-                "ACTIVE"
+                "ACTIVE",
+                List.of()
         );
     }
 }

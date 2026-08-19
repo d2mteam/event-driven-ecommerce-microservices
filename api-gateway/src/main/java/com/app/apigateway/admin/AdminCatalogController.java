@@ -30,8 +30,8 @@ public class AdminCatalogController {
             @RequestParam(required = false)
             @Pattern(regexp = "DRAFT|ACTIVE|ARCHIVED") String status,
             @RequestParam(required = false) String name,
-            @RequestParam(required = false) String category
+            @RequestParam(required = false) Long categoryId
     ) {
-        return catalogService.getCatalog(page, size, sort, status, name, category);
+        return catalogService.getCatalog(page, size, sort, status, name, categoryId);
     }
 }

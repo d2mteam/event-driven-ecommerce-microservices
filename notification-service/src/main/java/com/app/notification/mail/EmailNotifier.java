@@ -5,7 +5,7 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Component;
 
-/** Chỉ biết gửi một mail. Vòng lặp theo lô và xử lý lỗi nằm ở nơi gọi. */
+/** Chỉ biết gửi một email; retry và DLT do Kafka listener xử lý. */
 @Component
 @RequiredArgsConstructor
 public class EmailNotifier {

@@ -5,11 +5,10 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
-import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-/** Bản mỏng, không circuit breaker, không retry — demo nên chưa cần. */
+/** Tra email từ User Service. Lỗi tạm thời sẽ được Kafka listener retry. */
 @Component
 public class UserEmailClient {
 
@@ -19,12 +18,20 @@ public class UserEmailClient {
         this.restClient = RestClient.create(baseUrl);
     }
 
-    public List<UserEmailResponse> findAll(Set<UUID> userIds) {
-        return restClient.post()
+    public String findEmail(UUID userId) {
+        var users = restClient.post()
                 .uri("/internal/users/batch")
-                .body(userIds)
+                .body(Set.of(userId))
                 .retrieve()
-                .body(new ParameterizedTypeReference<>() {
+                .body(new ParameterizedTypeReference<java.util.List<UserEmailResponse>>() {
                 });
+        if (users == null) {
+            return null;
+        }
+        return users.stream()
+                .filter(user -> user.id().equals(userId))
+                .map(UserEmailResponse::email)
+                .findFirst()
+                .orElse(null);
     }
 }

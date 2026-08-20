@@ -11,13 +11,12 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       auto-offset-reset: earliest
-      max-poll-records: "${NOTIFICATION_KAFKA_MAX_POLL_RECORDS:50}"
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
     listener:
-      type: batch
-      ack-mode: batch
+      type: single
+      ack-mode: record
   jpa:
     open-in-view: false
     hibernate:
@@ -38,24 +37,21 @@ app:
       initial-interval: 1s
       multiplier: 2.0
       max-interval: 30s
-      dead-letter-topic: "${NOTIFICATION_DLT_TOPIC:order.events.notification-service.DLT}"
+      history-dead-letter-topic: "${NOTIFICATION_DLT_TOPIC:order.events.notification-history.DLT}"
+      email-dead-letter-topic: "${NOTIFICATION_EMAIL_DLT_TOPIC:order.events.notification-email.DLT}"
       partitions: "${KAFKA_TOPIC_PARTITIONS:3}"
       replication-factor: 1
   messaging:
     topics:
       order-events: "${ORDER_EVENTS_TOPIC:order.events}"
-    notification:
-      group-id: "${NOTIFICATION_KAFKA_GROUP_ID:notification-service}"
+    history:
+      group-id: "${NOTIFICATION_KAFKA_GROUP_ID:notification-history}"
+    email:
+      group-id: "${NOTIFICATION_EMAIL_KAFKA_GROUP_ID:notification-email}"
   notification:
     success-message-template: "Đơn hàng %s đã được xác nhận thành công."
     failure-message-template: "Đơn hàng %s thất bại (%s)."
     cancellation-message-template: "Đơn hàng %s đã được hủy và hoàn tiền."
-    email:
-      sweep-delay: "${NOTIFICATION_EMAIL_SWEEP_DELAY:10s}"
-      lease-duration: "${NOTIFICATION_EMAIL_LEASE_DURATION:2m}"
-      sweep-batch-size: "${NOTIFICATION_EMAIL_SWEEP_BATCH_SIZE:50}"
-      max-sweep-batches-per-run: "${NOTIFICATION_EMAIL_MAX_SWEEP_BATCHES_PER_RUN:10}"
-      max-attempts: "${NOTIFICATION_EMAIL_MAX_ATTEMPTS:5}"
 
 server:
   port: 8084

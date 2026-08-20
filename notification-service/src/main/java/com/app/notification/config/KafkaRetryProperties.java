@@ -18,7 +18,8 @@ public record KafkaRetryProperties(
         @NotNull @DurationMin(millis = 1) Duration initialInterval,
         @DecimalMin("1.0") double multiplier,
         @NotNull @DurationMin(millis = 1) Duration maxInterval,
-        @NotBlank String deadLetterTopic,
+        @NotBlank String historyDeadLetterTopic,
+        @NotBlank String emailDeadLetterTopic,
         @Min(1) int partitions,
         @Min(1) @Max(Short.MAX_VALUE) int replicationFactor
 ) {

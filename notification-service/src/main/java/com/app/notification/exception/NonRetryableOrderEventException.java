@@ -1,4 +1,4 @@
-package com.app.notification.messaging;
+package com.app.notification.exception;
 
 public class NonRetryableOrderEventException extends RuntimeException {
 

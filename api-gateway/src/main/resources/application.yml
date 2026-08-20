@@ -33,6 +33,8 @@ spring:
               predicates:
                 - Path=/api/notifications,/api/notifications/**
                 - Method=GET
+              metadata:
+                response-timeout: -1
             - id: product-admin-service
               uri: "${PRODUCT_SERVICE_URL:http://localhost:8081}"
               predicates:

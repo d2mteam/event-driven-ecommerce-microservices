@@ -1,6 +1,7 @@
 package com.app.notification.messaging;
 
 import com.app.notification.service.NotificationService;
+import com.app.notification.service.NotificationStream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
@@ -11,6 +12,7 @@ public class OrderEventListener {
 
     private final OrderEventParser eventParser;
     private final NotificationService notificationService;
+    private final NotificationStream notificationStream;
 
     @KafkaListener(
             topics = "${app.messaging.topics.order-events}",
@@ -22,6 +24,7 @@ public class OrderEventListener {
         if (notification == null) {
             return;
         }
-        notificationService.save(notification);
+        var saved = notificationService.save(notification);
+        notificationStream.publish(saved);
     }
 }

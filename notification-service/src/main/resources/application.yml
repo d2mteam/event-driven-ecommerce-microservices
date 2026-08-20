@@ -6,22 +6,32 @@ spring:
     username: "${DB_USERNAME:app_user}"
     password: "${DB_PASSWORD:password}"
   kafka:
-    bootstrap-servers: "${KAFKA_BOOTSTRAP_SERVERS:localhost:29092,localhost:39092,localhost:49092}"
+    bootstrap-servers: "${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}"
     consumer:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       auto-offset-reset: earliest
+      max-poll-records: "${NOTIFICATION_KAFKA_MAX_POLL_RECORDS:50}"
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
     listener:
-      ack-mode: record
+      type: batch
+      ack-mode: batch
   jpa:
     open-in-view: false
     hibernate:
       ddl-auto: update
+  mail:
+    host: "${MAIL_HOST:localhost}"
+    port: "${MAIL_PORT:1025}"
+    properties:
+      mail.smtp.auth: false
+      mail.smtp.starttls.enable: false
 
 app:
+  user-service:
+    base-url: "${USER_SERVICE_URL:http://localhost:8087}"
   kafka:
     retry:
       max-attempts: 10
@@ -40,6 +50,12 @@ app:
     success-message-template: "Đơn hàng %s đã được xác nhận thành công."
     failure-message-template: "Đơn hàng %s thất bại (%s)."
     cancellation-message-template: "Đơn hàng %s đã được hủy và hoàn tiền."
+    email:
+      sweep-delay: "${NOTIFICATION_EMAIL_SWEEP_DELAY:10s}"
+      lease-duration: "${NOTIFICATION_EMAIL_LEASE_DURATION:2m}"
+      sweep-batch-size: "${NOTIFICATION_EMAIL_SWEEP_BATCH_SIZE:50}"
+      max-sweep-batches-per-run: "${NOTIFICATION_EMAIL_MAX_SWEEP_BATCHES_PER_RUN:10}"
+      max-attempts: "${NOTIFICATION_EMAIL_MAX_ATTEMPTS:5}"
 
 server:
   port: 8084

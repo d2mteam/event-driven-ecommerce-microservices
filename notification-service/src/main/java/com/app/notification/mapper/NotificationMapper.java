@@ -18,7 +18,11 @@ public interface NotificationMapper {
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
-    @Mapping(target = "sent", constant = "true")
+    // status = PENDING, attempts = 0 -- lấy từ @Builder.Default của entity
+    @Mapping(target = "status", ignore = true)
+    @Mapping(target = "attempts", ignore = true)
+    @Mapping(target = "lockToken", ignore = true)
+    @Mapping(target = "lockedUntil", ignore = true)
     @Mapping(
             target = "message",
             expression = "java(properties.successMessageTemplate().formatted(event.orderId()))"

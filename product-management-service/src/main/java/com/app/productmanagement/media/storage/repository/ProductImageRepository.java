@@ -10,7 +10,7 @@ public interface ProductImageRepository extends JpaRepository<ProductImage, Stri
 
     boolean existsByObjectKeyIn(Collection<String> objectKeys);
 
-    List<ProductImage> findAllByProductId(Long productId);
+    List<ProductImage> findAllByProductIdOrderBySortOrder(Long productId);
 
-    List<ProductImage> findAllByProductIdIn(Collection<Long> productIds);
+    List<ProductImage> findAllByProductIdInOrderBySortOrder(Collection<Long> productIds);
 }

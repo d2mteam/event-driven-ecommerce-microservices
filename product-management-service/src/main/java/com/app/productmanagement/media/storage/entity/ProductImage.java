@@ -40,6 +40,13 @@ public class ProductImage {
     @Column(name = "product_id", nullable = false)
     private Long productId;
 
+    /**
+     * Vị trí trong danh sách ảnh của sản phẩm, lấy theo thứ tự client gửi lên.
+     * 0 là ảnh đại diện. Không có cột này thì query trả về thứ tự tuỳ ý.
+     */
+    @Column(name = "sort_order", nullable = false)
+    private int sortOrder;
+
     /** Đọc từ MinIO lúc gắn, không tin lời client khai. */
     @Column(name = "mime_type", nullable = false, length = 50)
     private String mimeType;

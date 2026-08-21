@@ -70,23 +70,61 @@ public class ProductImageService {
         }
 
         List<ProductImage> images = new ArrayList<>();
-        for (String objectKey : keys) {
+        for (int position = 0; position < keys.size(); position++) {
+            String objectKey = keys.get(position);
             ObjectStorageClient.ObjectInfo info = objectStorageClient.getObjectInfo(objectKey)
                     .orElseThrow(() -> new ProductImageStateConflictException(
                             "Image was never uploaded: " + objectKey));
             images.add(ProductImage.builder()
                     .objectKey(objectKey)
                     .productId(productId)
+                    .sortOrder(position)
                     .mimeType(info.contentType())
                     .build());
         }
         productImageRepository.saveAll(images);
     }
 
+    /**
+     * Đặt lại toàn bộ danh sách ảnh của một sản phẩm theo đúng thứ tự gửi lên.
+     *
+     * <p>Ảnh bị gỡ chỉ xoá dòng, không xoá file — xoá file trong transaction mà
+     * transaction rollback thì mất ảnh vĩnh viễn. Object mồ côi để đợt đối
+     * chiếu bucket dọn sau.
+     *
+     * <p>Danh sách không đổi thì không gọi MinIO lần nào.
+     */
+    @Transactional
+    public void replaceFor(Long productId, List<String> objectKeys) {
+        List<String> desired = objectKeys == null
+                ? List.of()
+                : objectKeys.stream().distinct().toList();
+
+        List<ProductImage> current = productImageRepository
+                .findAllByProductIdOrderBySortOrder(productId);
+        List<String> currentKeys = current.stream().map(ProductImage::getObjectKey).toList();
+
+        if (currentKeys.equals(desired)) {
+            return;
+        }
+        productImageRepository.deleteAll(current);
+        // Ép DELETE xuống database trước khi attachTo chèn lại.
+        //
+        // Trong một lần flush, Hibernate chạy INSERT trước DELETE. Ảnh giữ
+        // nguyên khi đảo thứ tự sẽ bị chèn lại với đúng khoá chính cũ trong
+        // khi bản cũ chưa xoá -> trùng khoá.
+        //
+        // Hiện câu exists trong attachTo cũng vô tình kích hoạt auto-flush và
+        // che mất chuyện này. Gọi thẳng ở đây để thứ tự là chủ ý, không phụ
+        // thuộc việc có query nào xen vào giữa hay không.
+        productImageRepository.flush();
+        attachTo(productId, desired);
+    }
+
     /** Cho GET /api/products/{id}. */
     @Transactional(readOnly = true)
     public List<String> urlsOf(Long productId) {
-        return productImageRepository.findAllByProductId(productId).stream()
+        return productImageRepository.findAllByProductIdOrderBySortOrder(productId).stream()
                 .map(image -> objectStorageClient.publicUrl(image.getObjectKey()))
                 .toList();
     }
@@ -98,7 +136,7 @@ public class ProductImageService {
             return Map.of();
         }
         Map<Long, List<String>> urlsByProductId = new LinkedHashMap<>();
-        for (ProductImage image : productImageRepository.findAllByProductIdIn(productIds)) {
+        for (ProductImage image : productImageRepository.findAllByProductIdInOrderBySortOrder(productIds)) {
             urlsByProductId
                     .computeIfAbsent(image.getProductId(), key -> new ArrayList<>())
                     .add(objectStorageClient.publicUrl(image.getObjectKey()));

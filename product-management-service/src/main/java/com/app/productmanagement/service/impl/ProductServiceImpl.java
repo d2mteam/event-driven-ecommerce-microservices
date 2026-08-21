@@ -12,6 +12,7 @@ import com.app.productmanagement.exception.CategoryStateConflictException;
 import com.app.productmanagement.exception.ProductNotFoundException;
 import com.app.productmanagement.exception.ProductStateConflictException;
 import com.app.productmanagement.mapper.ProductMapper;
+import com.app.productmanagement.media.storage.service.ProductImageService;
 import com.app.productmanagement.model.ProductStatus;
 import com.app.productmanagement.repository.CategoryRepository;
 import com.app.productmanagement.repository.ProductRepository;
@@ -32,6 +33,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -50,6 +52,7 @@ public class ProductServiceImpl implements ProductService {
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
     private final ProductMapper productMapper;
+    private final ProductImageService productImageService;
 
     @Override
     @Cacheable(
@@ -60,6 +63,7 @@ public class ProductServiceImpl implements ProductService {
         Page<ProductResponse> products = productRepository
                 .findAllByStatus(ProductStatus.ACTIVE, pageable)
                 .map(productMapper::toResponse);
+        withImages(products.getContent());
         return PageResponse.from(products);
     }
 
@@ -72,7 +76,7 @@ public class ProductServiceImpl implements ProductService {
         Product product = productRepository
                 .findByIdAndStatus(id, ProductStatus.ACTIVE)
                 .orElseThrow(() -> new ProductNotFoundException(id));
-        return productMapper.toResponse(product);
+        return withImages(productMapper.toResponse(product));
     }
 
     @Override
@@ -120,6 +124,7 @@ public class ProductServiceImpl implements ProductService {
                         searchPageable
                 )
                 .map(productMapper::toResponse);
+        withImages(products.getContent());
         return PageResponse.from(products);
     }
 
@@ -169,6 +174,7 @@ public class ProductServiceImpl implements ProductService {
                         stablePageable
                 )
                 .map(productMapper::toResponse);
+        withImages(products.getContent());
         return PageResponse.from(products);
     }
 
@@ -180,7 +186,9 @@ public class ProductServiceImpl implements ProductService {
         Product product = productMapper.toEntity(request);
         product.setCategory(category);
         product.setStatus(ProductStatus.DRAFT);
-        return productMapper.toResponse(productRepository.save(product));
+        Product saved = productRepository.save(product);
+        productImageService.attachTo(saved.getId(), request.imageKeys());
+        return withImages(productMapper.toResponse(saved));
     }
 
     @Override
@@ -209,7 +217,8 @@ public class ProductServiceImpl implements ProductService {
         Category category = getActiveCategory(request.categoryId());
         productMapper.update(request, product);
         product.setCategory(category);
-        return productMapper.toResponse(product);
+        productImageService.replaceFor(id, request.imageKeys());
+        return withImages(productMapper.toResponse(product));
     }
 
     @Override
@@ -222,6 +231,22 @@ public class ProductServiceImpl implements ProductService {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ProductNotFoundException(id));
         product.setStatus(ProductStatus.ARCHIVED);
+    }
+
+    private ProductResponse withImages(ProductResponse response) {
+        response.setImageUrls(productImageService.urlsOf(response.getId()));
+        return response;
+    }
+
+    /** Một câu query cho cả trang thay vì mỗi sản phẩm một câu. */
+    private void withImages(List<ProductResponse> responses) {
+        if (responses.isEmpty()) {
+            return;
+        }
+        Map<Long, List<String>> urlsByProductId = productImageService.urlsByProductId(
+                responses.stream().map(ProductResponse::getId).toList());
+        responses.forEach(response ->
+                response.setImageUrls(urlsByProductId.getOrDefault(response.getId(), List.of())));
     }
 
     private static String normalizeFilter(String value) {

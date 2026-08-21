@@ -9,6 +9,7 @@ import lombok.Setter;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 
 @Getter
@@ -28,4 +29,5 @@ public class ProductResponse implements Serializable {
     private String description;
     private Map<String, String> attributes;
     private ProductStatus status;
+    private List<String> imageUrls;
 }

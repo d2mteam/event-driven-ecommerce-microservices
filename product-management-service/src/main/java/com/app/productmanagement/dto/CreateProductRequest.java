@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 
 public record CreateProductRequest(
@@ -13,6 +14,7 @@ public record CreateProductRequest(
         @NotNull Long categoryId,
         @NotNull @DecimalMin("0.00") BigDecimal price,
         String description,
-        Map<String, String> attributes
+        Map<String, String> attributes,
+        @Size(max = 8) List<String> imageKeys
 ) {
 }

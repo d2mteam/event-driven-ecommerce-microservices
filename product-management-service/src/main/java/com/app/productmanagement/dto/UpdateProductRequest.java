@@ -7,6 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 
 public record UpdateProductRequest(
@@ -15,6 +16,7 @@ public record UpdateProductRequest(
         @NotNull @DecimalMin("0.00") BigDecimal price,
         String description,
         Map<String, String> attributes,
-        @NotNull ProductStatus status
+        @NotNull ProductStatus status,
+        @Size(max = 8) List<String> imageKeys
 ) {
 }

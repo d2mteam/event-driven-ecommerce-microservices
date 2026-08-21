@@ -1,10 +1,12 @@
 package com.app.productmanagement.service;
 
 import com.app.productmanagement.dto.CreateProductRequest;
+import com.app.productmanagement.dto.ProductResponse;
 import com.app.productmanagement.entity.Category;
 import com.app.productmanagement.entity.Product;
 import com.app.productmanagement.exception.CategoryStateConflictException;
 import com.app.productmanagement.mapper.ProductMapper;
+import com.app.productmanagement.media.storage.service.ProductImageService;
 import com.app.productmanagement.repository.CategoryRepository;
 import com.app.productmanagement.repository.ProductRepository;
 import com.app.productmanagement.service.impl.ProductServiceImpl;
@@ -19,6 +21,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.JpaSort;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -39,6 +42,9 @@ class ProductServiceImplTest {
 
     @Mock
     private ProductMapper productMapper;
+
+    @Mock
+    private ProductImageService productImageService;
 
     @InjectMocks
     private ProductServiceImpl productService;
@@ -157,7 +163,8 @@ class ProductServiceImplTest {
                 3L,
                 BigDecimal.TEN,
                 "Wireless mouse",
-                Map.of()
+                Map.of(),
+                List.of()
         );
         Category category = Category.builder()
                 .id(3L)
@@ -170,6 +177,7 @@ class ProductServiceImplTest {
         when(productMapper.toEntity(request)).thenReturn(product);
         when(productRepository.save(any(Product.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
+        when(productMapper.toResponse(product)).thenReturn(new ProductResponse());
 
         productService.createProduct(request);
 
@@ -184,7 +192,8 @@ class ProductServiceImplTest {
                 3L,
                 BigDecimal.TEN,
                 null,
-                Map.of()
+                Map.of(),
+                List.of()
         );
         Category category = Category.builder()
                 .id(3L)

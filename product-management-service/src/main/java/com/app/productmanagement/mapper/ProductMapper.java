@@ -12,6 +12,7 @@ import org.mapstruct.MappingTarget;
 @Mapper(componentModel = MappingConstants.ComponentModel.SPRING)
 public interface ProductMapper {
 
+    @Mapping(target = "imageUrls", ignore = true)
     @Mapping(target = "categoryId", source = "category.id")
     @Mapping(target = "category", source = "category.name")
     ProductResponse toResponse(Product product);

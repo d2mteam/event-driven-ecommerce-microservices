@@ -12,12 +12,16 @@ import org.mapstruct.MappingTarget;
 @Mapper(componentModel = MappingConstants.ComponentModel.SPRING)
 public interface ProductMapper {
 
+    @Mapping(target = "categoryId", source = "category.id")
+    @Mapping(target = "category", source = "category.name")
     ProductResponse toResponse(Product product);
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "status", ignore = true)
+    @Mapping(target = "category", ignore = true)
     Product toEntity(CreateProductRequest request);
 
     @Mapping(target = "id", ignore = true)
+    @Mapping(target = "category", ignore = true)
     void update(UpdateProductRequest request, @MappingTarget Product product);
 }

@@ -101,8 +101,30 @@ VALUES
     (50, 'Nintendo Switch OLED', 8990000,
      '{"brand":"Nintendo","category":"Gaming","storage":"64GB","display":"7 inch OLED"}');
 
-UPDATE products
-SET category = JSON_UNQUOTE(JSON_EXTRACT(attributes, '$.category'))
-WHERE category IS NULL
-  AND id BETWEEN 1 AND 50
-  AND JSON_EXTRACT(attributes, '$.category') IS NOT NULL;
+INSERT IGNORE INTO categories (name, active, system_category)
+SELECT DISTINCT TRIM(JSON_UNQUOTE(JSON_EXTRACT(product.attributes, '$.category'))),
+                TRUE,
+                FALSE
+FROM products product
+WHERE product.id BETWEEN 1 AND 50
+  AND product.category_id IS NULL
+  AND product.attributes IS NOT NULL
+  AND NULLIF(
+          TRIM(JSON_UNQUOTE(JSON_EXTRACT(product.attributes, '$.category'))),
+          ''
+      ) IS NOT NULL;
+
+UPDATE products product
+JOIN categories category
+  ON category.name = TRIM(
+      JSON_UNQUOTE(JSON_EXTRACT(product.attributes, '$.category'))
+  )
+ AND category.active = TRUE
+SET product.category_id = category.id
+WHERE product.id BETWEEN 1 AND 50
+  AND product.category_id IS NULL;
+
+UPDATE products product
+JOIN categories fallback ON fallback.system_category = TRUE
+SET product.category_id = fallback.id
+WHERE product.category_id IS NULL;

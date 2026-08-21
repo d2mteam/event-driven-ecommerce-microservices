@@ -20,14 +20,14 @@ public interface ProductService {
 
     PageResponse<ProductResponse> searchProducts(
             String name,
-            String category,
+            Long categoryId,
             Pageable pageable
     );
 
     PageResponse<ProductResponse> getAdminProducts(
             ProductStatus status,
             String name,
-            String category,
+            Long categoryId,
             Pageable pageable
     );
 

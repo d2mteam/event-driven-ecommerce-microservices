@@ -4,6 +4,7 @@ import com.app.productmanagement.cart.dto.CartItemResponse;
 import com.app.productmanagement.cart.dto.CartResponse;
 import com.app.productmanagement.cart.mapper.CartMapper;
 import com.app.productmanagement.cart.repository.CartRedisRepository;
+import com.app.productmanagement.entity.Category;
 import com.app.productmanagement.entity.Product;
 import com.app.productmanagement.model.ProductStatus;
 import com.app.productmanagement.repository.ProductRepository;
@@ -104,7 +105,11 @@ class CartServiceTest {
         return Product.builder()
                 .id(id)
                 .name(name)
-                .category("Electronics")
+                .category(Category.builder()
+                        .id(1L)
+                        .name("Electronics")
+                        .active(true)
+                        .build())
                 .price(new BigDecimal(price))
                 .status(ProductStatus.ACTIVE)
                 .build();

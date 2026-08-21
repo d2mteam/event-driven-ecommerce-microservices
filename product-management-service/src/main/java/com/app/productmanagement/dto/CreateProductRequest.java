@@ -10,12 +10,9 @@ import java.util.Map;
 
 public record CreateProductRequest(
         @NotBlank @Size(max = 500) String name,
-        @Size(max = 100) String category,
+        @NotNull Long categoryId,
         @NotNull @DecimalMin("0.00") BigDecimal price,
-        String bulletPoints,
         String description,
-        Long productTypeId,
-        Double productLength,
         Map<String, String> attributes
 ) {
 }

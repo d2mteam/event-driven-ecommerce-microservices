@@ -5,11 +5,15 @@ import com.app.productmanagement.dto.CreateProductRequest;
 import com.app.productmanagement.dto.PageResponse;
 import com.app.productmanagement.dto.ProductResponse;
 import com.app.productmanagement.dto.UpdateProductRequest;
+import com.app.productmanagement.entity.Category;
 import com.app.productmanagement.entity.Product;
+import com.app.productmanagement.exception.CategoryNotFoundException;
+import com.app.productmanagement.exception.CategoryStateConflictException;
 import com.app.productmanagement.exception.ProductNotFoundException;
 import com.app.productmanagement.exception.ProductStateConflictException;
 import com.app.productmanagement.mapper.ProductMapper;
 import com.app.productmanagement.model.ProductStatus;
+import com.app.productmanagement.repository.CategoryRepository;
 import com.app.productmanagement.repository.ProductRepository;
 import com.app.productmanagement.service.ProductService;
 import lombok.RequiredArgsConstructor;
@@ -44,6 +48,7 @@ public class ProductServiceImpl implements ProductService {
     );
 
     private final ProductRepository productRepository;
+    private final CategoryRepository categoryRepository;
     private final ProductMapper productMapper;
 
     @Override
@@ -82,17 +87,26 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public PageResponse<ProductResponse> searchProducts(
             String name,
-            String category,
+            Long categoryId,
             Pageable pageable
     ) {
         String normalizedName = normalizeFilter(name);
-        String normalizedCategory = normalizeFilter(category);
-        Sort searchSort = normalizedName == null
-                ? Sort.by("id")
-                : JpaSort.unsafe(
+        Sort searchSort;
+        if (normalizedName == null) {
+            searchSort = pageable.getSort().isUnsorted()
+                    ? Sort.by("id")
+                    : pageable.getSort();
+            boolean hasIdSort = searchSort.stream()
+                    .anyMatch(order -> order.getProperty().equals("id"));
+            if (!hasIdSort) {
+                searchSort = searchSort.and(Sort.by("id"));
+            }
+        } else {
+            searchSort = JpaSort.unsafe(
                         Sort.Direction.DESC,
                         "match(product.name) against (:name in natural language mode)"
                 ).and(Sort.by("id"));
+        }
         Pageable searchPageable = PageRequest.of(
                 pageable.getPageNumber(),
                 pageable.getPageSize(),
@@ -102,7 +116,7 @@ public class ProductServiceImpl implements ProductService {
                 .findProducts(
                         ProductStatus.ACTIVE.name(),
                         normalizedName,
-                        normalizedCategory,
+                        categoryId,
                         searchPageable
                 )
                 .map(productMapper::toResponse);
@@ -113,7 +127,7 @@ public class ProductServiceImpl implements ProductService {
     public PageResponse<ProductResponse> getAdminProducts(
             ProductStatus status,
             String name,
-            String category,
+            Long categoryId,
             Pageable pageable
     ) {
         if (pageable.getPageSize() > MAX_PAGE_SIZE) {
@@ -147,12 +161,11 @@ public class ProductServiceImpl implements ProductService {
         );
 
         String normalizedName = normalizeFilter(name);
-        String normalizedCategory = normalizeFilter(category);
         Page<ProductResponse> products = productRepository
                 .findProducts(
                         status == null ? null : status.name(),
                         normalizedName,
-                        normalizedCategory,
+                        categoryId,
                         stablePageable
                 )
                 .map(productMapper::toResponse);
@@ -163,7 +176,9 @@ public class ProductServiceImpl implements ProductService {
     @Transactional
     @CacheEvict(cacheNames = ProductCacheNames.PRODUCT_PAGE, allEntries = true)
     public ProductResponse createProduct(CreateProductRequest request) {
+        Category category = getActiveCategory(request.categoryId());
         Product product = productMapper.toEntity(request);
+        product.setCategory(category);
         product.setStatus(ProductStatus.DRAFT);
         return productMapper.toResponse(productRepository.save(product));
     }
@@ -191,7 +206,9 @@ public class ProductServiceImpl implements ProductService {
             );
         }
 
+        Category category = getActiveCategory(request.categoryId());
         productMapper.update(request, product);
+        product.setCategory(category);
         return productMapper.toResponse(product);
     }
 
@@ -213,5 +230,16 @@ public class ProductServiceImpl implements ProductService {
         }
         String normalized = value.strip();
         return normalized.isEmpty() ? null : normalized;
+    }
+
+    private Category getActiveCategory(Long id) {
+        Category category = categoryRepository.findById(id)
+                .orElseThrow(() -> new CategoryNotFoundException(id));
+        if (!category.isActive()) {
+            throw new CategoryStateConflictException(
+                    "Category is inactive: " + id
+            );
+        }
+        return category;
     }
 }

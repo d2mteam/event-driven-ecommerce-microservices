@@ -34,10 +34,10 @@ public class AdminProductController {
     public PageResponse<ProductResponse> getProducts(
             @RequestParam(required = false) ProductStatus status,
             @RequestParam(required = false) String name,
-            @RequestParam(required = false) String category,
+            @RequestParam(required = false) Long categoryId,
             @PageableDefault(size = 20, sort = "id") Pageable pageable
     ) {
-        return productService.getAdminProducts(status, name, category, pageable);
+        return productService.getAdminProducts(status, name, categoryId, pageable);
     }
 
     @PostMapping(ADMIN_PRODUCTS_PATH)

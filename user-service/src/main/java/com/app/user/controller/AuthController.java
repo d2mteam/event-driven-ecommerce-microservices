@@ -1,13 +1,17 @@
 package com.app.user.controller;
 
+import com.app.user.dto.ForgotPasswordRequest;
 import com.app.user.dto.LoginRequest;
 import com.app.user.dto.RefreshRequest;
 import com.app.user.dto.RegisterRequest;
+import com.app.user.dto.ResetPasswordRequest;
 import com.app.user.dto.TokenResponse;
 import com.app.user.service.AuthService;
+import com.app.user.service.PasswordResetService;
 import com.app.user.service.RegisterService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,6 +24,7 @@ public class AuthController {
 
     private final AuthService authService;
     private final RegisterService registerService;
+    private final PasswordResetService passwordResetService;
 
     @PostMapping("/register")
     public TokenResponse register(@Valid @RequestBody RegisterRequest request) {
@@ -34,5 +39,21 @@ public class AuthController {
     @PostMapping("/refresh")
     public TokenResponse refresh(@RequestBody RefreshRequest request) {
         return authService.refresh(request);
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Void> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request
+    ) {
+        passwordResetService.request(request.email());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Void> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request
+    ) {
+        passwordResetService.reset(request.token(), request.newPassword());
+        return ResponseEntity.noContent().build();
     }
 }

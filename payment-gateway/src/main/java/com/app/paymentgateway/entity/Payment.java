@@ -1,5 +1,6 @@
 package com.app.paymentgateway.entity;
 
+import com.app.paymentgateway.model.PaymentProviderType;
 import com.app.paymentgateway.model.PaymentStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -48,6 +49,14 @@ public class Payment {
     private BigDecimal amount;
 
     @Enumerated(EnumType.STRING)
+    @Column(
+            nullable = false,
+            updatable = false,
+            columnDefinition = "varchar(16) default 'MOCK'"
+    )
+    private PaymentProviderType provider;
+
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, columnDefinition = "varchar(32)")
     private PaymentStatus status;
 
@@ -59,9 +68,16 @@ public class Payment {
 
     private Instant completedAt;
 
+    private String providerTransactionNo;
+
+    private String providerResponseCode;
+
+    private String providerTransactionStatus;
+
     public static Payment pending(
             UUID orderId,
             BigDecimal amount,
+            PaymentProviderType provider,
             Instant createdAt,
             Instant expiresAt
     ) {
@@ -69,11 +85,25 @@ public class Payment {
                 null,
                 orderId,
                 amount,
+                provider,
                 PaymentStatus.PENDING,
                 expiresAt,
                 createdAt,
+                null,
+                null,
+                null,
                 null
         );
+    }
+
+    public void recordProviderResult(
+            String transactionNo,
+            String responseCode,
+            String transactionStatus
+    ) {
+        providerTransactionNo = transactionNo;
+        providerResponseCode = responseCode;
+        providerTransactionStatus = transactionStatus;
     }
 
     public boolean complete(PaymentStatus result, Instant completedAt) {

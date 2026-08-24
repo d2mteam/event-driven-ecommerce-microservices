@@ -20,7 +20,11 @@ public class OrderPaymentService {
     private final OrderRepository orderRepository;
     private final PaymentClient paymentClient;
 
-    public PaymentResponse create(UUID userId, UUID orderId) {
+    public PaymentResponse create(
+            UUID userId,
+            UUID orderId,
+            String clientIp
+    ) {
         Order order = orderRepository.findByIdAndUserId(orderId, userId)
                 .orElseThrow(() -> new OrderNotFoundException(orderId));
         if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
@@ -31,7 +35,8 @@ public class OrderPaymentService {
 
         return paymentClient.create(new CreatePaymentRequest(
                 order.getId(),
-                order.getTotalPrice()
+                order.getTotalPrice(),
+                clientIp
         ));
     }
 }

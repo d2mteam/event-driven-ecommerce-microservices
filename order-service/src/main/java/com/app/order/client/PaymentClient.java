@@ -40,8 +40,11 @@ public class PaymentClient {
                     || !request.orderId().equals(response.orderId())
                     || response.amount() == null
                     || request.amount().compareTo(response.amount()) != 0
+                    || response.provider() == null
                     || response.status() == null
-                    || response.expiresAt() == null) {
+                    || response.expiresAt() == null
+                    || response.paymentUrl() == null
+                    || response.paymentUrl().isBlank()) {
                 throw new DownstreamServiceException(
                         "Payment Service returned invalid payment data"
                 );

@@ -5,6 +5,7 @@ import java.util.UUID;
 
 public record CreatePaymentRequest(
         UUID orderId,
-        BigDecimal amount
+        BigDecimal amount,
+        String clientIp
 ) {
 }

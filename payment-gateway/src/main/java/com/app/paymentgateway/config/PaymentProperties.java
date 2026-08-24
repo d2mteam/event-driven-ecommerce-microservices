@@ -1,5 +1,6 @@
 package com.app.paymentgateway.config;
 
+import com.app.paymentgateway.model.PaymentProviderType;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -11,6 +12,7 @@ import java.time.Duration;
 @Validated
 @ConfigurationProperties(prefix = "app.payment")
 public record PaymentProperties(
+        @NotNull PaymentProviderType provider,
         @NotNull Duration ttl,
         @NotNull Duration sweepDelay,
         @NotBlank String publicBaseUrl,

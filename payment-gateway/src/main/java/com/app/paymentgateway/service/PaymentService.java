@@ -5,6 +5,7 @@ import com.app.paymentgateway.config.PaymentProperties;
 import com.app.paymentgateway.dto.CompleteMockPaymentRequest;
 import com.app.paymentgateway.dto.CreatePaymentRequest;
 import com.app.paymentgateway.dto.PaymentResponse;
+import com.app.paymentgateway.dto.VnpayIpnResponse;
 import com.app.paymentgateway.entity.Payment;
 import com.app.paymentgateway.entity.PaymentOutboxMessage;
 import com.app.paymentgateway.event.EventVersions;
@@ -15,7 +16,10 @@ import com.app.paymentgateway.exception.PaymentConflictException;
 import com.app.paymentgateway.exception.PaymentNotFoundException;
 import com.app.paymentgateway.mapper.PaymentMapper;
 import com.app.paymentgateway.model.PaymentOutboxStatus;
+import com.app.paymentgateway.model.PaymentProviderType;
 import com.app.paymentgateway.model.PaymentStatus;
+import com.app.paymentgateway.provider.PaymentProvider;
+import com.app.paymentgateway.provider.VnpayNotification;
 import com.app.paymentgateway.repository.PaymentOutboxMessageRepository;
 import com.app.paymentgateway.repository.PaymentRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -43,33 +47,41 @@ public class PaymentService {
     private final PaymentMessagingProperties messagingProperties;
     private final ObjectMapper objectMapper;
     private final PaymentMapper paymentMapper;
+    private final PaymentProvider paymentProvider;
 
     public PaymentResponse create(CreatePaymentRequest request) {
         Optional<Payment> existing = paymentRepository.findByOrderId(
                 request.orderId()
         );
         if (existing.isPresent()) {
-            return responseForSameOrder(existing.get(), request.amount());
+            return responseForSameOrder(
+                    existing.get(),
+                    request.amount(),
+                    request.clientIp()
+            );
         }
 
         Instant createdAt = Instant.now();
         Payment payment = Payment.pending(
                 request.orderId(),
                 request.amount(),
+                paymentProvider.type(),
                 createdAt,
                 createdAt.plus(paymentProperties.ttl())
         );
 
         try {
-            return paymentMapper.toResponse(
-                    paymentRepository.saveAndFlush(payment),
-                    paymentProperties
-            );
+            Payment saved = paymentRepository.saveAndFlush(payment);
+            return responseWithCheckoutUrl(saved, request.clientIp());
         } catch (DataIntegrityViolationException exception) {
             Payment winner = paymentRepository
                     .findByOrderId(request.orderId())
                     .orElseThrow(() -> exception);
-            return responseForSameOrder(winner, request.amount());
+            return responseForSameOrder(
+                    winner,
+                    request.amount(),
+                    request.clientIp()
+            );
         }
     }
 
@@ -77,7 +89,7 @@ public class PaymentService {
     public PaymentResponse findById(Long paymentId) {
         return paymentMapper.toResponse(
                 findPayment(paymentId),
-                paymentProperties
+                null
         );
     }
 
@@ -89,10 +101,15 @@ public class PaymentService {
         Payment payment = paymentRepository
                 .findByIdForUpdate(paymentId)
                 .orElseThrow(() -> new PaymentNotFoundException(paymentId));
+        if (payment.getProvider() != PaymentProviderType.MOCK) {
+            throw new PaymentConflictException(
+                    "Payment " + paymentId + " is not a mock payment"
+            );
+        }
         PaymentStatus result = paymentMapper.toStatus(request.result());
 
         if (payment.getStatus() == result) {
-            return paymentMapper.toResponse(payment, paymentProperties);
+            return paymentMapper.toResponse(payment, null);
         }
         if (payment.getStatus() != PaymentStatus.PENDING) {
             throw terminalConflict(payment);
@@ -107,7 +124,55 @@ public class PaymentService {
 
         payment.complete(result, completedAt);
         saveResultEvent(payment, eventTypeFor(result), completedAt);
-        return paymentMapper.toResponse(payment, paymentProperties);
+        return paymentMapper.toResponse(payment, null);
+    }
+
+    @Transactional
+    public VnpayIpnResponse applyVnpayResult(
+            VnpayNotification notification
+    ) {
+        Payment payment = paymentRepository
+                .findByIdForUpdate(notification.paymentId())
+                .orElse(null);
+        if (payment == null || payment.getProvider() != PaymentProviderType.VNPAY) {
+            return new VnpayIpnResponse(
+                    "01",
+                    "Payment not found"
+            );
+        }
+        if (toVnpayAmount(payment.getAmount()) != notification.amount()) {
+            return new VnpayIpnResponse(
+                    "04",
+                    "Invalid amount"
+            );
+        }
+        if (payment.getStatus() != PaymentStatus.PENDING) {
+            return new VnpayIpnResponse(
+                    "02",
+                    "Payment already confirmed"
+            );
+        }
+
+        Instant completedAt = Instant.now();
+        PaymentStatus result = notification.successful()
+                ? PaymentStatus.SUCCEEDED
+                : PaymentStatus.FAILED;
+        payment.recordProviderResult(
+                notification.transactionNo(),
+                notification.responseCode(),
+                notification.transactionStatus()
+        );
+        payment.complete(result, completedAt);
+        saveResultEvent(payment, eventTypeFor(result), completedAt);
+        return new VnpayIpnResponse(
+                "00",
+                "Confirm Success"
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public UUID findOrderId(Long paymentId) {
+        return findPayment(paymentId).getOrderId();
     }
 
     public int expirePendingPaymentsBatch(Instant expiredAt, int batchSize) {
@@ -181,7 +246,8 @@ public class PaymentService {
 
     private PaymentResponse responseForSameOrder(
             Payment payment,
-            BigDecimal requestedAmount
+            BigDecimal requestedAmount,
+            String clientIp
     ) {
         if (payment.getAmount().compareTo(requestedAmount) != 0) {
             throw new PaymentConflictException(
@@ -189,7 +255,26 @@ public class PaymentService {
                             + " already has a payment with a different amount"
             );
         }
-        return paymentMapper.toResponse(payment, paymentProperties);
+        if (payment.getProvider() != paymentProvider.type()) {
+            throw new PaymentConflictException(
+                    "Existing payment uses provider " + payment.getProvider()
+            );
+        }
+        return responseWithCheckoutUrl(payment, clientIp);
+    }
+
+    private PaymentResponse responseWithCheckoutUrl(
+            Payment payment,
+            String clientIp
+    ) {
+        String paymentUrl = payment.getStatus() == PaymentStatus.PENDING
+                ? paymentProvider.createPaymentUrl(payment, clientIp)
+                : null;
+        return paymentMapper.toResponse(payment, paymentUrl);
+    }
+
+    private long toVnpayAmount(BigDecimal amount) {
+        return amount.movePointRight(2).longValueExact();
     }
 
     private PaymentEventType eventTypeFor(PaymentStatus status) {

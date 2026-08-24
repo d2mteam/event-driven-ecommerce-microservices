@@ -77,6 +77,11 @@ public class SecurityConfig {
                         .pathMatchers("/api/auth/**").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/products/**").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/categories").permitAll()
+                        .pathMatchers(
+                                HttpMethod.GET,
+                                "/api/payments/vnpay/ipn",
+                                "/api/payments/vnpay/return"
+                        ).permitAll()
                         .pathMatchers("/actuator/**").permitAll()
                         .pathMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyExchange().authenticated()

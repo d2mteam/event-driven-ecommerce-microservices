@@ -1,6 +1,7 @@
 package com.app.paymentgateway.dto;
 
 import com.app.paymentgateway.model.PaymentStatus;
+import com.app.paymentgateway.model.PaymentProviderType;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -10,6 +11,7 @@ public record PaymentResponse(
         Long id,
         UUID orderId,
         BigDecimal amount,
+        PaymentProviderType provider,
         PaymentStatus status,
         Instant expiresAt,
         String paymentUrl

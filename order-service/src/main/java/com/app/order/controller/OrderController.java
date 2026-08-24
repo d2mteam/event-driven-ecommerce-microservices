@@ -1,6 +1,7 @@
 package com.app.order.controller;
 
 import com.app.order.api.ApiHeaders;
+import com.app.order.api.ClientIpResolver;
 import com.app.order.dto.CreateOrderRequest;
 import com.app.order.dto.OrderResponse;
 import com.app.order.dto.PageResponse;
@@ -9,11 +10,12 @@ import com.app.order.service.IdempotentOrderService;
 import com.app.order.service.OrderPaymentService;
 import com.app.order.service.OrderCancellationService;
 import com.app.order.service.OrderQueryService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -39,6 +41,7 @@ public class OrderController {
     private final OrderQueryService orderQueryService;
     private final OrderPaymentService orderPaymentService;
     private final OrderCancellationService orderCancellationService;
+    private final ClientIpResolver clientIpResolver;
 
     @GetMapping("/{orderId}")
     public OrderResponse findById(
@@ -81,9 +84,14 @@ public class OrderController {
     @PostMapping("/{orderId}/payments")
     public PaymentResponse createPayment(
             @RequestHeader(ApiHeaders.USER_ID) UUID userId,
-            @PathVariable UUID orderId
+            @PathVariable UUID orderId,
+            HttpServletRequest request
     ) {
-        return orderPaymentService.create(userId, orderId);
+        return orderPaymentService.create(
+                userId,
+                orderId,
+                clientIpResolver.resolve(request)
+        );
     }
 
     @PostMapping("/{orderId}/cancel")

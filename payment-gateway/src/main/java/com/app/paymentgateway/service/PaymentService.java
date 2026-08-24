@@ -208,7 +208,7 @@ public class PaymentService {
     }
 
     @Transactional
-    public void refund(OrderCancellationRequestedEvent event) {
+    public void completeRefund(OrderCancellationRequestedEvent event) {
         Payment payment = paymentRepository
                 .findByOrderIdForUpdate(event.orderId())
                 .orElseThrow(() -> new PaymentConflictException(

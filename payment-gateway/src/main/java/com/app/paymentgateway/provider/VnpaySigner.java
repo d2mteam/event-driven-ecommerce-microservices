@@ -23,6 +23,10 @@ public class VnpaySigner {
     private final VnpayProperties properties;
 
     public String sign(Map<String, String> parameters) {
+        return signData(canonicalize(parameters));
+    }
+
+    public String signData(String data) {
         try {
             Mac mac = Mac.getInstance(HMAC_SHA_512);
             mac.init(new SecretKeySpec(
@@ -30,10 +34,23 @@ public class VnpaySigner {
                     HMAC_SHA_512
             ));
             return HexFormat.of().formatHex(
-                    mac.doFinal(canonicalize(parameters).getBytes(StandardCharsets.UTF_8))
+                    mac.doFinal(data.getBytes(StandardCharsets.UTF_8))
             );
         } catch (GeneralSecurityException exception) {
             throw new IllegalStateException("Cannot sign VNPAY request", exception);
+        }
+    }
+
+    public boolean verifyData(String data, String secureHash) {
+        if (secureHash == null || secureHash.isBlank()) {
+            return false;
+        }
+        try {
+            byte[] expected = HexFormat.of().parseHex(signData(data));
+            byte[] received = HexFormat.of().parseHex(secureHash);
+            return MessageDigest.isEqual(expected, received);
+        } catch (IllegalArgumentException exception) {
+            return false;
         }
     }
 

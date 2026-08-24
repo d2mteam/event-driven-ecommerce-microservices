@@ -4,9 +4,9 @@ import com.app.paymentgateway.config.VnpayProperties;
 import com.app.paymentgateway.entity.Payment;
 import com.app.paymentgateway.exception.VnpayCallbackException;
 import com.app.paymentgateway.model.PaymentProviderType;
-import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -14,9 +14,10 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Component
-@RequiredArgsConstructor
 @ConditionalOnProperty(name = "app.payment.provider", havingValue = "VNPAY")
 public class VnpayPaymentProvider implements PaymentProvider {
 
@@ -26,6 +27,19 @@ public class VnpayPaymentProvider implements PaymentProvider {
 
     private final VnpayProperties properties;
     private final VnpaySigner signer;
+    private final RestClient restClient;
+
+    public VnpayPaymentProvider(
+            VnpayProperties properties,
+            VnpaySigner signer,
+            RestClient.Builder restClientBuilder
+    ) {
+        this.properties = properties;
+        this.signer = signer;
+        this.restClient = restClientBuilder
+                .baseUrl(properties.apiUrl())
+                .build();
+    }
 
     @Override
     public PaymentProviderType type() {
@@ -92,10 +106,125 @@ public class VnpayPaymentProvider implements PaymentProvider {
         return properties.frontendBaseUrl().replaceAll("/+$", "");
     }
 
+    @Override
+    public PaymentRefundResult refund(Payment payment, UUID requestId) {
+        Map<String, String> request = refundRequest(payment, requestId);
+        request.put("vnp_SecureHash", signer.signData(refundHashData(request)));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> response = restClient.post()
+                .uri("")
+                .body(request)
+                .retrieve()
+                .body(Map.class);
+        if (response == null) {
+            return PaymentRefundResult.retryable("VNPAY returned an empty refund response");
+        }
+
+        Map<String, String> fields = response.entrySet().stream()
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry -> entry.getValue() == null
+                                ? ""
+                                : entry.getValue().toString()
+                ));
+        if (!signer.verifyData(
+                refundResponseHashData(fields),
+                fields.get("vnp_SecureHash")
+        )) {
+            return PaymentRefundResult.rejected("Invalid VNPAY refund signature");
+        }
+
+        String responseCode = fields.get("vnp_ResponseCode");
+        String transactionStatus = fields.get("vnp_TransactionStatus");
+        if ("00".equals(responseCode) && "00".equals(transactionStatus)) {
+            return PaymentRefundResult.success();
+        }
+        if ("94".equals(responseCode)
+                || "99".equals(responseCode)
+                || "05".equals(transactionStatus)
+                || "06".equals(transactionStatus)) {
+            return PaymentRefundResult.retryable(
+                    "VNPAY refund is still pending: " + responseCode
+            );
+        }
+        return PaymentRefundResult.rejected(
+                "VNPAY rejected refund: " + responseCode
+        );
+    }
+
     private String toVnpayAmount(BigDecimal amount) {
         return amount.movePointRight(2)
                 .setScale(0, RoundingMode.UNNECESSARY)
                 .toPlainString();
+    }
+
+    private Map<String, String> refundRequest(
+            Payment payment,
+            UUID requestId
+    ) {
+        String createdAt = VNPAY_TIME.format(
+                payment.getCreatedAt().atZone(VIETNAM_TIME)
+        );
+        Map<String, String> request = new LinkedHashMap<>();
+        request.put("vnp_RequestId", requestId.toString().replace("-", ""));
+        request.put("vnp_Version", properties.version());
+        request.put("vnp_Command", "refund");
+        request.put("vnp_TmnCode", properties.tmnCode());
+        request.put("vnp_TransactionType", "02");
+        request.put("vnp_TxnRef", payment.getId().toString());
+        request.put("vnp_Amount", toVnpayAmount(payment.getAmount()));
+        request.put(
+                "vnp_TransactionNo",
+                payment.getProviderTransactionNo() == null
+                        ? ""
+                        : payment.getProviderTransactionNo()
+        );
+        request.put("vnp_TransactionDate", createdAt);
+        request.put("vnp_CreateBy", "demo-ecommerce");
+        request.put(
+                "vnp_CreateDate",
+                VNPAY_TIME.format(java.time.ZonedDateTime.now(VIETNAM_TIME))
+        );
+        request.put("vnp_IpAddr", "127.0.0.1");
+        request.put("vnp_OrderInfo", "Hoan tien payment " + payment.getId());
+        return request;
+    }
+
+    private String refundHashData(Map<String, String> request) {
+        return String.join("|",
+                request.get("vnp_RequestId"),
+                request.get("vnp_Version"),
+                request.get("vnp_Command"),
+                request.get("vnp_TmnCode"),
+                request.get("vnp_TransactionType"),
+                request.get("vnp_TxnRef"),
+                request.get("vnp_Amount"),
+                request.get("vnp_TransactionNo"),
+                request.get("vnp_TransactionDate"),
+                request.get("vnp_CreateBy"),
+                request.get("vnp_CreateDate"),
+                request.get("vnp_IpAddr"),
+                request.get("vnp_OrderInfo")
+        );
+    }
+
+    private String refundResponseHashData(Map<String, String> response) {
+        return String.join("|",
+                response.getOrDefault("vnp_ResponseId", ""),
+                response.getOrDefault("vnp_Command", ""),
+                response.getOrDefault("vnp_ResponseCode", ""),
+                response.getOrDefault("vnp_Message", ""),
+                response.getOrDefault("vnp_TmnCode", ""),
+                response.getOrDefault("vnp_TxnRef", ""),
+                response.getOrDefault("vnp_Amount", ""),
+                response.getOrDefault("vnp_BankCode", ""),
+                response.getOrDefault("vnp_PayDate", ""),
+                response.getOrDefault("vnp_TransactionNo", ""),
+                response.getOrDefault("vnp_TransactionType", ""),
+                response.getOrDefault("vnp_TransactionStatus", ""),
+                response.getOrDefault("vnp_OrderInfo", "")
+        );
     }
 
     private String required(Map<String, String> parameters, String name) {

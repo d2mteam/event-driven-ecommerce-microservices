@@ -3,7 +3,7 @@ package com.app.paymentgateway.messaging;
 import com.app.paymentgateway.event.EventVersions;
 import com.app.paymentgateway.event.OrderCancellationRequestedEvent;
 import com.app.paymentgateway.event.OrderEventType;
-import com.app.paymentgateway.service.PaymentService;
+import com.app.paymentgateway.service.PaymentRefundService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
 public class OrderEventListener {
 
     private final ObjectMapper objectMapper;
-    private final PaymentService paymentService;
+    private final PaymentRefundService paymentRefundService;
 
     @KafkaListener(
             topics = "${app.messaging.topics.order-events}",
@@ -38,7 +38,7 @@ public class OrderEventListener {
                             + event.eventVersion()
             );
         }
-        paymentService.refund(event);
+        paymentRefundService.refund(event);
     }
 
     private JsonNode readTree(String payload) {

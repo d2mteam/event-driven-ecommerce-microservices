@@ -7,6 +7,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import java.util.UUID;
+
 @Component
 @RequiredArgsConstructor
 @ConditionalOnProperty(
@@ -29,5 +31,10 @@ public class MockPaymentProvider implements PaymentProvider {
     public String createPaymentUrl(Payment payment, String clientIp) {
         return properties.publicBaseUrl().replaceAll("/+$", "")
                 + PAYMENT_PATH.formatted(payment.getId());
+    }
+
+    @Override
+    public PaymentRefundResult refund(Payment payment, UUID requestId) {
+        return PaymentRefundResult.success();
     }
 }

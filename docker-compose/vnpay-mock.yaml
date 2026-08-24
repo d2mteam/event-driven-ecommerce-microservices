@@ -1,0 +1,21 @@
+services:
+  vnpay-mock:
+    build:
+      context: ../vnpay-mock-server
+    container_name: ecommerce_vnpay_mock
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    environment:
+      PORT: 8090
+      VNPAY_TMN_CODE: "${VNPAY_TMN_CODE:-DEMOV210}"
+      VNPAY_HASH_SECRET: "${VNPAY_HASH_SECRET:-local-demo-secret}"
+      MERCHANT_IPN_URL: "${MOCK_VNPAY_IPN_URL:-http://host.docker.internal:8080/api/payments/vnpay/ipn}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    mem_limit: 128m
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8090/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10

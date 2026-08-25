@@ -1,12 +1,34 @@
 package com.app.notification.messaging;
 
-import com.app.notification.exception.NonRetryableEmailEventException;
+import com.app.notification.config.EmailBatchProperties;
+import com.app.notification.entity.Notification;
+import com.app.notification.exception.NonRetryableOrderEventException;
+import com.app.notification.mail.EmailDeadLetterPublisher;
 import com.app.notification.mail.EmailNotifier;
 import com.app.notification.mail.UserEmailClient;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
+
+/**
+ * Nhận cả lô (tối đa batchSize record, chờ gom tối đa window) rồi gửi song song
+ * bằng CompletableFuture -- không email nào chặn email nào.
+ *
+ * <p>Xử lý lỗi: payload hỏng thì bỏ qua vì gửi lại cũng hỏng y hệt; mọi lỗi còn
+ * lại đẩy payload sang DLT để xử lý sau. Listener không ném lên trên, nên một
+ * email hỏng không làm cả lô bị gửi lại.
+ */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class OrderEmailListener {
@@ -14,23 +36,82 @@ public class OrderEmailListener {
     private final OrderEventParser eventParser;
     private final UserEmailClient userEmailClient;
     private final EmailNotifier emailNotifier;
+    private final EmailDeadLetterPublisher deadLetterPublisher;
+    private final EmailBatchProperties batchProperties;
 
     @KafkaListener(
             topics = "${app.messaging.topics.order-events}",
             groupId = "${app.messaging.email.group-id}",
             containerFactory = "notificationEmailKafkaListenerContainerFactory"
     )
-    public void consume(String payload) {
-        var notification = eventParser.parse(payload).orElse(null);
-        if (notification == null) {
+    public void consume(List<String> payloads) {
+        List<PendingEmail> pending = parseAll(payloads);
+        if (pending.isEmpty()) {
             return;
         }
-        String email = userEmailClient.findEmail(notification.getUserId());
-        if (email == null) {
-            throw new NonRetryableEmailEventException(
-                    "Email not found for user " + notification.getUserId()
-            );
+
+        // User Service chết thì ném lên listener: cả lô đáng được retry, khác
+        // hẳn lỗi của riêng một email.
+        Map<UUID, String> emailsByUser = userEmailClient.findEmails(
+                pending.stream()
+                        .map(item -> item.notification().getUserId())
+                        .collect(Collectors.toSet())
+        );
+
+        CompletableFuture<?>[] futures = pending.stream()
+                .map(item -> CompletableFuture.runAsync(
+                        () -> send(item, emailsByUser.get(item.notification().getUserId()))
+                ))
+                .toArray(CompletableFuture[]::new);
+
+        awaitWithinWindow(futures);
+    }
+
+    private List<PendingEmail> parseAll(List<String> payloads) {
+        List<PendingEmail> pending = new ArrayList<>();
+        for (String payload : payloads) {
+            try {
+                eventParser.parse(payload).ifPresent(
+                        notification -> pending.add(new PendingEmail(payload, notification))
+                );
+            } catch (NonRetryableOrderEventException exception) {
+                log.warn("Skip malformed order event", exception);
+            }
         }
-        emailNotifier.send(email, notification.getMessage());
+        return pending;
+    }
+
+    /** Chạy trên thread của CompletableFuture nên phải tự nuốt lỗi. */
+    private void send(PendingEmail item, String email) {
+        try {
+            if (email == null) {
+                throw new IllegalStateException(
+                        "No email for user " + item.notification().getUserId()
+                );
+            }
+            emailNotifier.send(email, item.notification().getMessage());
+        } catch (RuntimeException exception) {
+            deadLetterPublisher.publish(item.payload(), exception);
+        }
+    }
+
+    /**
+     * Hết cửa sổ mà chưa xong thì thôi không chờ nữa để consumer còn poll lô
+     * kế -- phần dở dang vẫn chạy nốt ở background, chỉ là không ai chờ.
+     */
+    private void awaitWithinWindow(CompletableFuture<?>[] futures) {
+        try {
+            CompletableFuture.allOf(futures)
+                    .get(batchProperties.window().toMillis(), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException exception) {
+            log.warn("Email batch exceeded {} window", batchProperties.window());
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+        } catch (Exception exception) {
+            log.warn("Email batch failed", exception);
+        }
+    }
+
+    private record PendingEmail(String payload, Notification notification) {
     }
 }

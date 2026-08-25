@@ -15,6 +15,11 @@ spring:
       fail-fast: true
     producer:
       acks: all
+      # Relay bắn cả lô một lúc; chờ thêm chút để producer gom được batch to hơn.
+      properties:
+        linger.ms: 5
+        # Kafka chết thì send() phải hỏng nhanh, đừng chặn 60s chờ metadata.
+        max.block.ms: 2000
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
     consumer:
@@ -69,14 +74,12 @@ app:
       replication-factor: "${KAFKA_TOPIC_REPLICATION_FACTOR:1}"
   outbox:
     initial-delay: "${PAYMENT_OUTBOX_INITIAL_DELAY:2s}"
-    fixed-delay: "${PAYMENT_OUTBOX_FIXED_DELAY:1s}"
-    batch-size: "${PAYMENT_OUTBOX_BATCH_SIZE:50}"
-    send-timeout: "${PAYMENT_OUTBOX_SEND_TIMEOUT:10s}"
-    lease-duration: "${PAYMENT_OUTBOX_LEASE_DURATION:10m}"
-    retry-initial-delay: "${PAYMENT_OUTBOX_RETRY_INITIAL_DELAY:1s}"
-    retry-multiplier: "${PAYMENT_OUTBOX_RETRY_MULTIPLIER:2.0}"
-    retry-max-delay: "${PAYMENT_OUTBOX_RETRY_MAX_DELAY:60s}"
-    alert-after-attempts: "${PAYMENT_OUTBOX_ALERT_AFTER_ATTEMPTS:10}"
+    fixed-delay: "${PAYMENT_OUTBOX_FIXED_DELAY:100ms}"
+    batch-size: "${PAYMENT_OUTBOX_BATCH_SIZE:500}"
+    send-timeout: "${PAYMENT_OUTBOX_SEND_TIMEOUT:2s}"
+    lease-duration: "${PAYMENT_OUTBOX_LEASE_DURATION:5m}"
+    retry-delay: "${PAYMENT_OUTBOX_RETRY_DELAY:5s}"
+    max-attempts: "${PAYMENT_OUTBOX_MAX_ATTEMPTS:10}"
 
 server:
   port: 8086

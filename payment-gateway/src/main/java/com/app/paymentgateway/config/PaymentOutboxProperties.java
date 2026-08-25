@@ -1,7 +1,6 @@
 package com.app.paymentgateway.config;
 
 import jakarta.validation.constraints.AssertTrue;
-import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
@@ -18,31 +17,31 @@ import java.time.Duration;
 public class PaymentOutboxProperties {
 
     @Min(1)
-    private int batchSize = 50;
+    private int batchSize = 500;
 
     @NotNull
-    private Duration sendTimeout = Duration.ofSeconds(10);
+    private Duration sendTimeout = Duration.ofSeconds(2);
 
     @NotNull
-    private Duration leaseDuration = Duration.ofMinutes(10);
+    private Duration leaseDuration = Duration.ofMinutes(5);
 
+    /** Một mức chờ chung cho mọi lần thử lại -- không tính riêng từng message. */
     @NotNull
-    private Duration retryInitialDelay = Duration.ofSeconds(1);
+    private Duration retryDelay = Duration.ofSeconds(5);
 
-    @DecimalMin("1.0")
-    private double retryMultiplier = 2.0;
-
-    @NotNull
-    private Duration retryMaxDelay = Duration.ofSeconds(60);
-
+    /** Thử đủ số lần này mà vẫn hỏng thì chuyển FAILED và thôi. */
     @Min(1)
-    private int alertAfterAttempts = 10;
+    private int maxAttempts = 10;
 
-    @AssertTrue(message = "lease-duration must exceed batch-size multiplied by send-timeout")
+    /**
+     * Cả lô bắn cùng lúc nên thời gian giữ lease không phụ thuộc batch-size:
+     * xấu nhất là chờ hết một send-timeout cho toàn bộ lô.
+     */
+    @AssertTrue(message = "lease-duration must exceed send-timeout")
     public boolean isLeaseLongEnough() {
-        if (leaseDuration == null || sendTimeout == null || batchSize < 1) {
+        if (leaseDuration == null || sendTimeout == null) {
             return true;
         }
-        return leaseDuration.compareTo(sendTimeout.multipliedBy(batchSize)) > 0;
+        return leaseDuration.compareTo(sendTimeout) > 0;
     }
 }

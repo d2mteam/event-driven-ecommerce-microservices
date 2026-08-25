@@ -53,12 +53,12 @@ public interface PaymentOutboxMessageRepository
                 message.lockToken = null,
                 message.lockedUntil = null,
                 message.lastError = null
-            where message.id = :id
+            where message.id in :ids
               and message.status = :processing
               and message.lockToken = :lockToken
             """)
-    int markPublished(
-            @Param("id") Long id,
+    int markPublishedAll(
+            @Param("ids") List<Long> ids,
             @Param("lockToken") String lockToken,
             @Param("processing") PaymentOutboxStatus processing,
             @Param("published") PaymentOutboxStatus published,
@@ -73,12 +73,12 @@ public interface PaymentOutboxMessageRepository
                 message.lockToken = null,
                 message.lockedUntil = null,
                 message.lastError = :lastError
-            where message.id = :id
+            where message.id in :ids
               and message.status = :processing
               and message.lockToken = :lockToken
             """)
-    int scheduleRetry(
-            @Param("id") Long id,
+    int scheduleRetryAll(
+            @Param("ids") List<Long> ids,
             @Param("lockToken") String lockToken,
             @Param("processing") PaymentOutboxStatus processing,
             @Param("pending") PaymentOutboxStatus pending,
@@ -93,12 +93,12 @@ public interface PaymentOutboxMessageRepository
                 message.lockToken = null,
                 message.lockedUntil = null,
                 message.lastError = :lastError
-            where message.id = :id
+            where message.id in :ids
               and message.status = :processing
               and message.lockToken = :lockToken
             """)
-    int markFailed(
-            @Param("id") Long id,
+    int markFailedAll(
+            @Param("ids") List<Long> ids,
             @Param("lockToken") String lockToken,
             @Param("processing") PaymentOutboxStatus processing,
             @Param("failed") PaymentOutboxStatus failed,

@@ -6,272 +6,194 @@ import com.app.paymentgateway.model.PaymentOutboxStatus;
 import com.app.paymentgateway.repository.PaymentOutboxMessageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.kafka.common.config.ConfigException;
-import org.apache.kafka.common.errors.AuthenticationException;
-import org.apache.kafka.common.errors.AuthorizationException;
-import org.apache.kafka.common.errors.InvalidTopicException;
-import org.apache.kafka.common.errors.RecordTooLargeException;
-import org.apache.kafka.common.errors.SerializationException;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.SendResult;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
+/**
+ * Đẩy message trong bảng outbox lên Kafka theo lô.
+ *
+ * <p>Mỗi vòng đi qua 4 bước: claim một lô -> bắn hết cả lô -> thu kết quả từng
+ * message -> chốt trạng thái. Điểm cốt lõi là bước bắn và bước thu tách rời
+ * nhau: {@code send()} chỉ ghi record vào buffer của producer rồi trả future
+ * ngay, nên bắn xong cả lô mới đi thu thì producer có đủ record trong buffer để
+ * tự gom thành batch. Chờ ngay sau mỗi lần bắn thì mỗi message tốn trọn một
+ * vòng round-trip.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class PaymentOutboxRelay {
-
-    private static final int MAX_ERROR_LENGTH = 2000;
 
     private final PaymentOutboxMessageRepository outboxRepository;
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final PaymentOutboxProperties properties;
     private final TransactionTemplate transactionTemplate;
 
+    /** Một message và lý do nó rớt; {@code error} null nghĩa là gửi được. */
+    private record Outcome(PaymentOutboxMessage message, Throwable error) {
+    }
+
     @Scheduled(
             initialDelayString = "${app.outbox.initial-delay}",
             fixedDelayString = "${app.outbox.fixed-delay}"
     )
-    public void publishUnpublishedMessages() {
-        List<PaymentOutboxMessage> messages;
-        try {
-            messages = claimMessages();
-        } catch (RuntimeException exception) {
-            log.error("Payment outbox claim failed", exception);
+    public void publishPendingMessages() {
+        String lockToken = UUID.randomUUID().toString();
+
+        List<PaymentOutboxMessage> claimed = claimMessages(lockToken);
+        if (claimed.isEmpty()) {
             return;
         }
 
-        for (PaymentOutboxMessage message : messages) {
-            if (!publishAndFinalize(message)) {
-                break;
-            }
-        }
+        finalizeAll(sendAll(claimed), lockToken);
     }
 
-    private List<PaymentOutboxMessage> claimMessages() {
-        List<PaymentOutboxMessage> messages = transactionTemplate.execute(status -> {
+    private List<PaymentOutboxMessage> claimMessages(String lockToken) {
+        List<PaymentOutboxMessage> claimed = transactionTemplate.execute(status -> {
             Instant now = Instant.now();
-            String lockToken = UUID.randomUUID().toString();
-            Instant lockedUntil = now.plus(properties.getLeaseDuration());
-
-            List<PaymentOutboxMessage> claimable =
-                    outboxRepository.findClaimableForUpdate(
-                            now,
-                            properties.getBatchSize()
-                    );
-            claimable.forEach(message -> {
-                message.claim(lockToken, lockedUntil);
-                log.debug(
-                        "Claimed payment outbox message id={}, attempt={}, token={}",
-                        message.getId(),
-                        message.getAttemptCount(),
-                        lockToken
-                );
-            });
+            List<PaymentOutboxMessage> claimable = outboxRepository.findClaimableForUpdate(
+                    now,
+                    properties.getBatchSize()
+            );
+            claimable.forEach(message -> message.claim(
+                    lockToken,
+                    now.plus(properties.getLeaseDuration())
+            ));
             return List.copyOf(claimable);
         });
-
-        return messages == null ? List.of() : messages;
+        return claimed == null ? List.of() : claimed;
     }
 
-    private boolean publishAndFinalize(PaymentOutboxMessage message) {
+    /**
+     * Bắn cả lô rồi mới thu kết quả.
+     *
+     * <p>{@code toList()} ở giữa là bắt buộc, không phải cho đẹp: stream chạy
+     * lazy nên nếu nối thẳng {@code map(join)} vào cùng một chuỗi thì mỗi phần
+     * tử sẽ đi hết đường ống trước khi tới phần tử sau -- bắn 1, chờ 1, bắn 2,
+     * chờ 2... tức là quay về gửi tuần tự.
+     *
+     * <p>{@code orTimeout} của cả lô được gọi ở lượt đầu, cách nhau vài micro
+     * giây, nên coi như một hạn chót chung: Kafka chết thì cả lô rớt sau một
+     * {@code sendTimeout}, không phải batchSize lần sendTimeout.
+     */
+    private List<Outcome> sendAll(List<PaymentOutboxMessage> messages) {
+        return messages.stream()
+                .map(message -> send(message)
+                        .orTimeout(
+                                properties.getSendTimeout().toMillis(),
+                                TimeUnit.MILLISECONDS
+                        )
+                        // handle nuốt lỗi tại chỗ -> future sau đây không bao
+                        // giờ hỏng, nên join phía dưới khỏi cần try/catch.
+                        .handle((sent, error) -> new Outcome(message, error)))
+                .toList()
+                .stream()
+                .map(CompletableFuture::join)
+                .toList();
+    }
+
+    /** send() ném thẳng tại chỗ khi hết max.block.ms mà chưa có metadata. */
+    private CompletableFuture<SendResult<String, String>> send(PaymentOutboxMessage message) {
         try {
-            kafkaTemplate.send(
-                            message.getTopic(),
-                            message.getKey(),
-                            message.getPayload()
-                    )
-                    .get(
-                            properties.getSendTimeout().toMillis(),
-                            TimeUnit.MILLISECONDS
-                    );
-            markPublished(message);
-            return true;
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            scheduleRetry(message, exception);
-            return false;
+            return kafkaTemplate.send(
+                    message.getTopic(),
+                    message.getKey(),
+                    message.getPayload()
+            );
         } catch (Exception exception) {
-            if (isPermanentProducerFailure(exception)) {
-                markFailed(message, exception);
-            } else {
-                scheduleRetry(message, exception);
-            }
-            return true;
+            return CompletableFuture.failedFuture(exception);
         }
     }
 
-    private void markPublished(PaymentOutboxMessage message) {
-        try {
-            transactionTemplate.executeWithoutResult(status -> {
-                int updated = outboxRepository.markPublished(
-                        message.getId(),
-                        message.getLockToken(),
+    /**
+     * Chốt cả lô trong một transaction. Một message rớt chỉ mình nó bị thử lại,
+     * không kéo theo những message đậu cùng lô.
+     */
+    private void finalizeAll(List<Outcome> outcomes, String lockToken) {
+        List<Long> published = idsOf(outcomes, outcome -> outcome.error() == null);
+        // attemptCount đã tăng lúc claim, nên so thẳng với maxAttempts.
+        List<Long> retryable = idsOf(outcomes, outcome -> outcome.error() != null
+                && outcome.message().getAttemptCount() < properties.getMaxAttempts());
+        List<Long> exhausted = idsOf(outcomes, outcome -> outcome.error() != null
+                && outcome.message().getAttemptCount() >= properties.getMaxAttempts());
+
+        String lastError = outcomes.stream()
+                .map(Outcome::error)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .map(this::summarize)
+                .orElse(null);
+        Instant now = Instant.now();
+
+        transactionTemplate.executeWithoutResult(status -> {
+            if (!published.isEmpty()) {
+                outboxRepository.markPublishedAll(
+                        published,
+                        lockToken,
                         PaymentOutboxStatus.PROCESSING,
                         PaymentOutboxStatus.PUBLISHED,
-                        Instant.now()
+                        now
                 );
-                requireFinalized(message, updated, PaymentOutboxStatus.PUBLISHED);
-            });
-            log.debug(
-                    "Published payment outbox message id={}, attempt={}, token={}",
-                    message.getId(),
-                    message.getAttemptCount(),
-                    message.getLockToken()
-            );
-        } catch (RuntimeException exception) {
-            log.error(
-                    "Kafka accepted payment outbox message id={} but DB finalize failed; "
-                            + "the lease will allow redelivery",
-                    message.getId(),
-                    exception
-            );
-        }
-    }
-
-    private void scheduleRetry(
-            PaymentOutboxMessage message,
-            Exception exception
-    ) {
-        Instant nextAttemptAt = Instant.now().plus(backoffFor(message));
-        String error = errorSummary(exception);
-
-        try {
-            transactionTemplate.executeWithoutResult(status -> {
-                int updated = outboxRepository.scheduleRetry(
-                        message.getId(),
-                        message.getLockToken(),
+            }
+            if (!retryable.isEmpty()) {
+                outboxRepository.scheduleRetryAll(
+                        retryable,
+                        lockToken,
                         PaymentOutboxStatus.PROCESSING,
                         PaymentOutboxStatus.PENDING,
-                        nextAttemptAt,
-                        error
+                        now.plus(properties.getRetryDelay()),
+                        lastError
                 );
-                requireFinalized(message, updated, PaymentOutboxStatus.PENDING);
-            });
-        } catch (RuntimeException finalizeException) {
-            log.error(
-                    "Cannot schedule retry for payment outbox message id={}; "
-                            + "the lease will allow redelivery",
-                    message.getId(),
-                    finalizeException
-            );
-            return;
-        }
-
-        if (message.getAttemptCount() >= properties.getAlertAfterAttempts()) {
-            log.error(
-                    "Payment outbox message id={} still failing after attempt={}; "
-                            + "nextAttemptAt={}, error={}",
-                    message.getId(),
-                    message.getAttemptCount(),
-                    nextAttemptAt,
-                    error
-            );
-        } else {
-            log.warn(
-                    "Payment outbox message id={} publish failed at attempt={}; "
-                            + "nextAttemptAt={}, error={}",
-                    message.getId(),
-                    message.getAttemptCount(),
-                    nextAttemptAt,
-                    error
-            );
-        }
-    }
-
-    private void markFailed(
-            PaymentOutboxMessage message,
-            Exception exception
-    ) {
-        String error = errorSummary(exception);
-        try {
-            transactionTemplate.executeWithoutResult(status -> {
-                int updated = outboxRepository.markFailed(
-                        message.getId(),
-                        message.getLockToken(),
+            }
+            if (!exhausted.isEmpty()) {
+                outboxRepository.markFailedAll(
+                        exhausted,
+                        lockToken,
                         PaymentOutboxStatus.PROCESSING,
                         PaymentOutboxStatus.FAILED,
-                        error
+                        lastError
                 );
-                requireFinalized(message, updated, PaymentOutboxStatus.FAILED);
-            });
-            log.error(
-                    "Payment outbox message id={} permanently failed at attempt={}; error={}",
-                    message.getId(),
-                    message.getAttemptCount(),
-                    error
-            );
-        } catch (RuntimeException finalizeException) {
-            log.error(
-                    "Cannot mark payment outbox message id={} as FAILED; "
-                            + "the lease will allow redelivery",
-                    message.getId(),
-                    finalizeException
-            );
-        }
-    }
-
-    private Duration backoffFor(PaymentOutboxMessage message) {
-        double multiplier = Math.pow(
-                properties.getRetryMultiplier(),
-                Math.max(0, message.getAttemptCount() - 1)
-        );
-        double calculatedMillis =
-                properties.getRetryInitialDelay().toMillis() * multiplier;
-        long delayMillis = (long) Math.min(
-                calculatedMillis,
-                properties.getRetryMaxDelay().toMillis()
-        );
-        return Duration.ofMillis(delayMillis);
-    }
-
-    private boolean isPermanentProducerFailure(Throwable exception) {
-        Throwable current = exception;
-        while (current != null) {
-            if (current instanceof SerializationException
-                    || current instanceof RecordTooLargeException
-                    || current instanceof InvalidTopicException
-                    || current instanceof AuthorizationException
-                    || current instanceof AuthenticationException
-                    || current instanceof ConfigException) {
-                return true;
             }
-            current = current.getCause();
+        });
+
+        if (!retryable.isEmpty() || !exhausted.isEmpty()) {
+            log.warn(
+                    "Payment outbox: published={}, retry={}, failed={}, error={}",
+                    published.size(),
+                    retryable.size(),
+                    exhausted.size(),
+                    lastError
+            );
         }
-        return false;
     }
 
-    private String errorSummary(Throwable exception) {
+    private List<Long> idsOf(
+            List<Outcome> outcomes,
+            Predicate<Outcome> filter
+    ) {
+        return outcomes.stream()
+                .filter(filter)
+                .map(outcome -> outcome.message().getId())
+                .toList();
+    }
+
+    private String summarize(Throwable exception) {
         Throwable root = exception;
         while (root.getCause() != null && root.getCause() != root) {
             root = root.getCause();
         }
-
-        String message = root.getMessage();
-        String summary = root.getClass().getSimpleName()
-                + (message == null || message.isBlank() ? "" : ": " + message);
-        return summary.length() <= MAX_ERROR_LENGTH
-                ? summary
-                : summary.substring(0, MAX_ERROR_LENGTH);
-    }
-
-    private void requireFinalized(
-            PaymentOutboxMessage message,
-            int updated,
-            PaymentOutboxStatus targetStatus
-    ) {
-        if (updated != 1) {
-            throw new IllegalStateException(
-                    "Payment outbox message %d was not finalized as %s"
-                            .formatted(message.getId(), targetStatus)
-            );
-        }
+        String summary = root.getClass().getSimpleName() + ": " + root.getMessage();
+        return summary.length() > 2000 ? summary.substring(0, 2000) : summary;
     }
 }

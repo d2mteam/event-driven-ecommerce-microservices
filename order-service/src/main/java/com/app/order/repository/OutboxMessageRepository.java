@@ -13,6 +13,11 @@ import java.util.List;
 public interface OutboxMessageRepository
         extends JpaRepository<OutboxMessage, Long> {
 
+    /**
+     * Chỉ nhặt message khi mọi message cùng message_key trước nó đã PUBLISHED.
+     * Nhờ vậy một lô claim về luôn có key đôi một khác nhau -- đó là lý do bắn
+     * cả lô một lúc không làm sai thứ tự trong cùng một key.
+     */
     @Query(
             value = """
                     select candidate.*
@@ -53,18 +58,19 @@ public interface OutboxMessageRepository
                 message.lockToken = null,
                 message.lockedUntil = null,
                 message.lastError = null
-            where message.id = :id
+            where message.id in :ids
               and message.status = :processing
               and message.lockToken = :lockToken
             """)
-    int markPublished(
-            @Param("id") Long id,
+    int markPublishedAll(
+            @Param("ids") List<Long> ids,
             @Param("lockToken") String lockToken,
             @Param("processing") OutboxStatus processing,
             @Param("published") OutboxStatus published,
             @Param("publishedAt") Instant publishedAt
     );
 
+    /** attemptCount đã tăng lúc claim nên ở đây không đụng tới nữa. */
     @Modifying
     @Query("""
             update OutboxMessage message
@@ -73,12 +79,12 @@ public interface OutboxMessageRepository
                 message.lockToken = null,
                 message.lockedUntil = null,
                 message.lastError = :lastError
-            where message.id = :id
+            where message.id in :ids
               and message.status = :processing
               and message.lockToken = :lockToken
             """)
-    int scheduleRetry(
-            @Param("id") Long id,
+    int scheduleRetryAll(
+            @Param("ids") List<Long> ids,
             @Param("lockToken") String lockToken,
             @Param("processing") OutboxStatus processing,
             @Param("pending") OutboxStatus pending,
@@ -86,6 +92,7 @@ public interface OutboxMessageRepository
             @Param("lastError") String lastError
     );
 
+    /** Hết lượt thử. Dòng nằm lại đây chờ người xử lý -- xem requeue-outbox.sh. */
     @Modifying
     @Query("""
             update OutboxMessage message
@@ -93,12 +100,12 @@ public interface OutboxMessageRepository
                 message.lockToken = null,
                 message.lockedUntil = null,
                 message.lastError = :lastError
-            where message.id = :id
+            where message.id in :ids
               and message.status = :processing
               and message.lockToken = :lockToken
             """)
-    int markFailed(
-            @Param("id") Long id,
+    int markFailedAll(
+            @Param("ids") List<Long> ids,
             @Param("lockToken") String lockToken,
             @Param("processing") OutboxStatus processing,
             @Param("failed") OutboxStatus failed,

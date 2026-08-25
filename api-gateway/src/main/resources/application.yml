@@ -60,6 +60,11 @@ spring:
               predicates:
                 - Path=/api/admin/orders,/api/admin/orders/**
                 - Method=GET
+            - id: user-admin-service
+              uri: "${USER_SERVICE_URL:http://localhost:8087}"
+              predicates:
+                - Path=/api/admin/users,/api/admin/users/**
+                - Method=GET,PUT
             - id: order-service
               uri: "${ORDER_SERVICE_URL:http://localhost:8082}"
               predicates:

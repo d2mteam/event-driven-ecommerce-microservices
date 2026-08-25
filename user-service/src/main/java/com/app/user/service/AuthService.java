@@ -7,6 +7,8 @@ import com.app.user.entity.User;
 import com.app.user.exception.InvalidCredentialsException;
 import com.app.user.exception.InvalidRefreshTokenException;
 import com.app.user.exception.JwtException;
+import com.app.user.exception.UserBannedException;
+import com.app.user.model.UserStatus;
 import com.app.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -31,6 +33,7 @@ public class AuthService {
         if (!passwordEncoder.matches(loginRequest.password(), user.getPasswordHash())) {
             throw new InvalidCredentialsException("Invalid username or password");
         }
+        requireActive(user);
 
         List<String> roles = List.of(user.getRole().toString());
         return new TokenResponse(
@@ -52,6 +55,7 @@ public class AuthService {
 
         User user = userRepository.findById(decoded.userId())
                 .orElseThrow(() -> new InvalidRefreshTokenException("User no longer exists"));
+        requireActive(user);
 
         // Chỉ phát access token mới; refresh token cũ giữ nguyên, không xoay vòng.
         // TODO: không có cách thu hồi refresh token trước hạn (đổi mật khẩu, đăng
@@ -61,5 +65,11 @@ public class AuthService {
                 jwtService.generateAccessToken(user.getId(), roles),
                 refreshRequest.refreshToken()
         );
+    }
+
+    private void requireActive(User user) {
+        if (user.getStatus() == UserStatus.BANNED) {
+            throw new UserBannedException();
+        }
     }
 }

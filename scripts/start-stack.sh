@@ -10,6 +10,9 @@ PID_DIR="${RUN_DIR}/pids"
 OTEL_ENABLED=false
 OTEL_JAVAAGENT_VERSION="${OTEL_JAVAAGENT_VERSION:-2.30.0}"
 OTEL_JAVAAGENT_PATH="${OTEL_JAVAAGENT_PATH:-${RUN_DIR}/otel/opentelemetry-javaagent.jar}"
+JVM_INITIAL_HEAP="${JVM_INITIAL_HEAP:-64m}"
+JVM_SMALL_MAX_HEAP="${JVM_SMALL_MAX_HEAP:-256m}"
+JVM_LARGE_MAX_HEAP="${JVM_LARGE_MAX_HEAP:-384m}"
 
 mkdir -p "${LOG_DIR}" "${PID_DIR}"
 
@@ -103,23 +106,53 @@ wait_http() {
   return 1
 }
 
+# minio-init tạo bucket rồi thoát. product-service kiểm bucket ngay lúc khởi
+# động (verifyBucket) nên phải đợi nó chạy xong, không chỉ đợi minio healthy.
+wait_minio_bucket() {
+  local state
+
+  for _ in $(seq 1 60); do
+    state="$(docker inspect -f '{{.State.Status}}:{{.State.ExitCode}}' \
+      ecommerce_minio_init 2>/dev/null || true)"
+    case "${state}" in
+      exited:0)
+        echo "minio-init: bucket ready"
+        return 0
+        ;;
+      exited:*)
+        echo "minio-init: failed (${state})" >&2
+        docker logs ecommerce_minio_init 2>&1 | tail -n 20 >&2
+        return 1
+        ;;
+    esac
+    sleep 1
+  done
+
+  echo "minio-init: did not finish in time" >&2
+  return 1
+}
+
 start_service() {
   local dir_name="$1"
   local service_name="$2"
   local port="$3"
   local url="$4"
+  local max_heap="$5"
   local service_dir="${ROOT_DIR}/${dir_name}"
   local log_file="${LOG_DIR}/${service_name}.log"
   local pid_file="${PID_DIR}/${service_name}.pid"
   local java_bin
   local jar_file
-  local -a java_args=()
+  local -a java_args=(
+    "-Xms${JVM_INITIAL_HEAP}"
+    "-Xmx${max_heap}"
+  )
   local -a runtime_environment=()
 
   echo "building ${service_name}"
   (
     cd "${service_dir}"
-    ./gradlew bootJar >"${log_file}" 2>&1
+    ./gradlew --no-daemon bootJar >"${log_file}" 2>&1
   )
 
   jar_file="$(find "${service_dir}/build/libs" -maxdepth 1 -type f -name "*.jar" ! -name "*plain.jar" | head -n 1)"
@@ -166,12 +199,13 @@ if [ "${OTEL_ENABLED}" = true ]; then
   prepare_otel_agent
 fi
 
-"${SCRIPT_DIR}/stop-app-ports.sh" 8080 8081 8082 8083 8084 8086
+"${SCRIPT_DIR}/stop-app-ports.sh" 8080 8081 8082 8083 8084 8086 8087
 
 echo "starting docker infrastructure"
 infrastructure_services=(
   mariadb cloudbeaver redis redis-insight
-  kafka-1 kafka-2 kafka-3 kafka-console
+  kafka-1 kafka-console
+  minio minio-init mailhog
 )
 compose_options=(-f "${COMPOSE_FILE}")
 
@@ -191,12 +225,32 @@ if [ "${OTEL_ENABLED}" = true ]; then
   wait_http "otel-collector" "http://localhost:13133" 60
 fi
 
-start_service "product-management-service" "product-service" 8081 "http://localhost:8081/api/products"
-start_service "inventory-service" "inventory-service" 8083 "http://localhost:8083/internal/inventory/reservations"
-start_service "payment-gateway" "payment-gateway" 8086 "http://localhost:8086/api/payments/0"
-start_service "order-service" "order-service" 8082 "http://localhost:8082/api/orders"
-start_service "notification-service" "notification-service" 8084 "http://localhost:8084"
-start_service "api-gateway" "api-gateway" 8080 "http://localhost:8080/actuator/health"
+wait_minio_bucket
+# notification-service chỉ chạm SMTP lúc gửi, không phải lúc khởi động, nên
+# đợi ở đây chỉ để lỗi lộ ra ngay thay vì lặng lẽ ở lần gửi mail đầu tiên.
+wait_http "mailhog" "http://localhost:8025/api/v2/messages" 30
+
+start_service \
+  "product-management-service" "product-service" \
+  8081 "http://localhost:8081/api/products" "${JVM_SMALL_MAX_HEAP}"
+start_service \
+  "inventory-service" "inventory-service" \
+  8083 "http://localhost:8083/internal/inventory/reservations" "${JVM_LARGE_MAX_HEAP}"
+start_service \
+  "payment-gateway" "payment-gateway" \
+  8086 "http://localhost:8086/api/payments/0" "${JVM_SMALL_MAX_HEAP}"
+start_service \
+  "order-service" "order-service" \
+  8082 "http://localhost:8082/api/orders" "${JVM_LARGE_MAX_HEAP}"
+start_service \
+  "notification-service" "notification-service" \
+  8084 "http://localhost:8084" "${JVM_SMALL_MAX_HEAP}"
+start_service \
+  "user-service" "user-service" \
+  8087 "http://localhost:8087/api/auth/login" "${JVM_SMALL_MAX_HEAP}"
+start_service \
+  "api-gateway" "api-gateway" \
+  8080 "http://localhost:8080/actuator/health" "${JVM_LARGE_MAX_HEAP}"
 
 echo
 echo "stack is ready"
@@ -206,6 +260,8 @@ echo "api gateway: http://localhost:8080"
 echo "redpanda console: http://localhost:8085"
 echo "redis insight: http://localhost:5540"
 echo "database ui: http://localhost:8978 (admin / admin123)"
+echo "minio console: http://localhost:9011 (minioadmin / minioadmin)"
+echo "mailhog inbox: http://localhost:8025"
 echo "mock payment: http://localhost:8080/api/payments/{paymentId}/mock"
 if [ "${OTEL_ENABLED}" = true ]; then
   echo "otel traces: enabled -> ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://localhost:4318}"

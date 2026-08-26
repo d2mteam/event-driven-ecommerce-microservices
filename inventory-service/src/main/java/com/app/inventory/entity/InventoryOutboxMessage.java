@@ -24,7 +24,7 @@ import lombok.NoArgsConstructor;
         name = "inventory_outbox_messages",
         indexes = @Index(
                 name = "idx_inventory_outbox_claim",
-                columnList = "status, next_attempt_at, locked_until, id"
+                columnList = "status, next_attempt_at, locked_until"
         )
 )
 @Getter

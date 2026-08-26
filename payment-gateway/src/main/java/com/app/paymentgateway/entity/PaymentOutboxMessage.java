@@ -26,7 +26,7 @@ import java.util.UUID;
         indexes = {
                 @Index(
                         name = "idx_payment_outbox_claim",
-                        columnList = "status, next_attempt_at, locked_until, id"
+                        columnList = "status, next_attempt_at, locked_until"
                 ),
                 @Index(
                         name = "idx_payment_outbox_key_order",

@@ -2,7 +2,6 @@ package com.app.paymentgateway.service;
 
 import com.app.paymentgateway.config.PaymentOutboxProperties;
 import com.app.paymentgateway.entity.PaymentOutboxMessage;
-import com.app.paymentgateway.model.PaymentOutboxStatus;
 import com.app.paymentgateway.repository.PaymentOutboxMessageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -138,32 +137,18 @@ public class PaymentOutboxRelay {
 
         transactionTemplate.executeWithoutResult(status -> {
             if (!published.isEmpty()) {
-                outboxRepository.markPublishedAll(
-                        published,
-                        lockToken,
-                        PaymentOutboxStatus.PROCESSING,
-                        PaymentOutboxStatus.PUBLISHED,
-                        now
-                );
+                outboxRepository.markPublishedAll(published, lockToken, now);
             }
             if (!retryable.isEmpty()) {
                 outboxRepository.scheduleRetryAll(
                         retryable,
                         lockToken,
-                        PaymentOutboxStatus.PROCESSING,
-                        PaymentOutboxStatus.PENDING,
                         now.plus(properties.getRetryDelay()),
                         lastError
                 );
             }
             if (!exhausted.isEmpty()) {
-                outboxRepository.markFailedAll(
-                        exhausted,
-                        lockToken,
-                        PaymentOutboxStatus.PROCESSING,
-                        PaymentOutboxStatus.FAILED,
-                        lastError
-                );
+                outboxRepository.markFailedAll(exhausted, lockToken, lastError);
             }
         });
 

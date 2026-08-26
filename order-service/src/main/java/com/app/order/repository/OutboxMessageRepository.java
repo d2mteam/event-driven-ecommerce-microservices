@@ -1,7 +1,6 @@
 package com.app.order.repository;
 
 import com.app.order.entity.OutboxMessage;
-import com.app.order.model.OutboxStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -53,20 +52,18 @@ public interface OutboxMessageRepository
     @Modifying
     @Query("""
             update OutboxMessage message
-            set message.status = :published,
+            set message.status = com.app.order.model.OutboxStatus.PUBLISHED,
                 message.publishedAt = :publishedAt,
                 message.lockToken = null,
                 message.lockedUntil = null,
                 message.lastError = null
             where message.id in :ids
-              and message.status = :processing
+              and message.status = com.app.order.model.OutboxStatus.PROCESSING
               and message.lockToken = :lockToken
             """)
     int markPublishedAll(
             @Param("ids") List<Long> ids,
             @Param("lockToken") String lockToken,
-            @Param("processing") OutboxStatus processing,
-            @Param("published") OutboxStatus published,
             @Param("publishedAt") Instant publishedAt
     );
 
@@ -74,20 +71,18 @@ public interface OutboxMessageRepository
     @Modifying
     @Query("""
             update OutboxMessage message
-            set message.status = :pending,
+            set message.status = com.app.order.model.OutboxStatus.PENDING,
                 message.nextAttemptAt = :nextAttemptAt,
                 message.lockToken = null,
                 message.lockedUntil = null,
                 message.lastError = :lastError
             where message.id in :ids
-              and message.status = :processing
+              and message.status = com.app.order.model.OutboxStatus.PROCESSING
               and message.lockToken = :lockToken
             """)
     int scheduleRetryAll(
             @Param("ids") List<Long> ids,
             @Param("lockToken") String lockToken,
-            @Param("processing") OutboxStatus processing,
-            @Param("pending") OutboxStatus pending,
             @Param("nextAttemptAt") Instant nextAttemptAt,
             @Param("lastError") String lastError
     );
@@ -96,19 +91,17 @@ public interface OutboxMessageRepository
     @Modifying
     @Query("""
             update OutboxMessage message
-            set message.status = :failed,
+            set message.status = com.app.order.model.OutboxStatus.FAILED,
                 message.lockToken = null,
                 message.lockedUntil = null,
                 message.lastError = :lastError
             where message.id in :ids
-              and message.status = :processing
+              and message.status = com.app.order.model.OutboxStatus.PROCESSING
               and message.lockToken = :lockToken
             """)
     int markFailedAll(
             @Param("ids") List<Long> ids,
             @Param("lockToken") String lockToken,
-            @Param("processing") OutboxStatus processing,
-            @Param("failed") OutboxStatus failed,
             @Param("lastError") String lastError
     );
 }

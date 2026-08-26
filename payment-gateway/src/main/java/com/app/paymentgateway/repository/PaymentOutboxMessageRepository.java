@@ -1,7 +1,6 @@
 package com.app.paymentgateway.repository;
 
 import com.app.paymentgateway.entity.PaymentOutboxMessage;
-import com.app.paymentgateway.model.PaymentOutboxStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -48,40 +47,36 @@ public interface PaymentOutboxMessageRepository
     @Modifying
     @Query("""
             update PaymentOutboxMessage message
-            set message.status = :published,
+            set message.status = com.app.paymentgateway.model.PaymentOutboxStatus.PUBLISHED,
                 message.publishedAt = :publishedAt,
                 message.lockToken = null,
                 message.lockedUntil = null,
                 message.lastError = null
             where message.id in :ids
-              and message.status = :processing
+              and message.status = com.app.paymentgateway.model.PaymentOutboxStatus.PROCESSING
               and message.lockToken = :lockToken
             """)
     int markPublishedAll(
             @Param("ids") List<Long> ids,
             @Param("lockToken") String lockToken,
-            @Param("processing") PaymentOutboxStatus processing,
-            @Param("published") PaymentOutboxStatus published,
             @Param("publishedAt") Instant publishedAt
     );
 
     @Modifying
     @Query("""
             update PaymentOutboxMessage message
-            set message.status = :pending,
+            set message.status = com.app.paymentgateway.model.PaymentOutboxStatus.PENDING,
                 message.nextAttemptAt = :nextAttemptAt,
                 message.lockToken = null,
                 message.lockedUntil = null,
                 message.lastError = :lastError
             where message.id in :ids
-              and message.status = :processing
+              and message.status = com.app.paymentgateway.model.PaymentOutboxStatus.PROCESSING
               and message.lockToken = :lockToken
             """)
     int scheduleRetryAll(
             @Param("ids") List<Long> ids,
             @Param("lockToken") String lockToken,
-            @Param("processing") PaymentOutboxStatus processing,
-            @Param("pending") PaymentOutboxStatus pending,
             @Param("nextAttemptAt") Instant nextAttemptAt,
             @Param("lastError") String lastError
     );
@@ -89,19 +84,17 @@ public interface PaymentOutboxMessageRepository
     @Modifying
     @Query("""
             update PaymentOutboxMessage message
-            set message.status = :failed,
+            set message.status = com.app.paymentgateway.model.PaymentOutboxStatus.FAILED,
                 message.lockToken = null,
                 message.lockedUntil = null,
                 message.lastError = :lastError
             where message.id in :ids
-              and message.status = :processing
+              and message.status = com.app.paymentgateway.model.PaymentOutboxStatus.PROCESSING
               and message.lockToken = :lockToken
             """)
     int markFailedAll(
             @Param("ids") List<Long> ids,
             @Param("lockToken") String lockToken,
-            @Param("processing") PaymentOutboxStatus processing,
-            @Param("failed") PaymentOutboxStatus failed,
             @Param("lastError") String lastError
     );
 }

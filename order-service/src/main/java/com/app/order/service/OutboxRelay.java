@@ -2,7 +2,6 @@ package com.app.order.service;
 
 import com.app.order.config.OutboxRelayProperties;
 import com.app.order.entity.OutboxMessage;
-import com.app.order.model.OutboxStatus;
 import com.app.order.repository.OutboxMessageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -138,32 +137,18 @@ public class OutboxRelay {
 
         transactionTemplate.executeWithoutResult(status -> {
             if (!published.isEmpty()) {
-                outboxMessageRepository.markPublishedAll(
-                        published,
-                        lockToken,
-                        OutboxStatus.PROCESSING,
-                        OutboxStatus.PUBLISHED,
-                        now
-                );
+                outboxMessageRepository.markPublishedAll(published, lockToken, now);
             }
             if (!retryable.isEmpty()) {
                 outboxMessageRepository.scheduleRetryAll(
                         retryable,
                         lockToken,
-                        OutboxStatus.PROCESSING,
-                        OutboxStatus.PENDING,
                         now.plus(properties.getRetryDelay()),
                         lastError
                 );
             }
             if (!exhausted.isEmpty()) {
-                outboxMessageRepository.markFailedAll(
-                        exhausted,
-                        lockToken,
-                        OutboxStatus.PROCESSING,
-                        OutboxStatus.FAILED,
-                        lastError
-                );
+                outboxMessageRepository.markFailedAll(exhausted, lockToken, lastError);
             }
         });
 

@@ -1,7 +1,7 @@
 package com.app.productmanagement.media.storage;
 
+import com.app.productmanagement.config.StorageProperties;
 import jakarta.annotation.PostConstruct;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -28,21 +28,22 @@ public class S3ObjectStorageClient implements ObjectStorageClient {
     private final S3Client s3Client;
     private final S3Presigner s3Presigner;
     private final String bucket;
-    private final String endpoint;
+    /** Địa chỉ trình duyệt gọi được, không phải địa chỉ service tự gọi. */
+    private final String publicEndpoint;
 
     S3ObjectStorageClient(
             S3Client s3Client,
             S3Presigner s3Presigner,
-            @Value("${app.storage.bucket}") String bucket,
-            @Value("${app.storage.endpoint}") String endpoint
+            StorageProperties properties
     ) {
         this.s3Client = s3Client;
         this.s3Presigner = s3Presigner;
-        this.bucket = bucket;
+        this.bucket = properties.getBucket();
+        String publicEndpoint = properties.getPublicEndpoint();
         // Cắt dấu / cuối một lần ở đây, để publicUrl khỏi sinh ra "//".
-        this.endpoint = endpoint.endsWith("/")
-                ? endpoint.substring(0, endpoint.length() - 1)
-                : endpoint;
+        this.publicEndpoint = publicEndpoint.endsWith("/")
+                ? publicEndpoint.substring(0, publicEndpoint.length() - 1)
+                : publicEndpoint;
     }
 
     /**
@@ -171,6 +172,6 @@ public class S3ObjectStorageClient implements ObjectStorageClient {
 
     @Override
     public String publicUrl(String objectKey) {
-        return endpoint + "/" + bucket + "/" + objectKey;
+        return publicEndpoint + "/" + bucket + "/" + objectKey;
     }
 }

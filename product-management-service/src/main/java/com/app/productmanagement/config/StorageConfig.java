@@ -24,10 +24,11 @@ public class StorageConfig {
                 .build();
     }
 
+    /** URL ký ra là để trình duyệt gọi, nên ký bằng địa chỉ công khai. */
     @Bean
     S3Presigner s3Presigner(StorageProperties props) {
         return S3Presigner.builder()
-                .endpointOverride(URI.create(props.getEndpoint()))
+                .endpointOverride(URI.create(props.getPublicEndpoint()))
                 .region(Region.US_EAST_1)
                 .credentialsProvider(credentials(props))
                 .serviceConfiguration(S3Configuration.builder()

@@ -40,7 +40,11 @@ app:
   cart:
     ttl: "${CART_TTL:7d}"
   storage:
+    # Service tự gọi MinIO qua địa chỉ này.
     endpoint: "${MINIO_ENDPOINT:http://localhost:9010}"
+    # Địa chỉ trình duyệt gọi được: dùng cho URL ký sẵn và URL ảnh trả ra.
+    # Bỏ trống thì lấy theo endpoint, nên chạy trên host không cần đặt.
+    public-endpoint: "${MINIO_PUBLIC_ENDPOINT:}"
     bucket: "${MINIO_BUCKET:product-images}"
     access-key: "${MINIO_ACCESS_KEY:minioadmin}"
     secret-key: "${MINIO_SECRET_KEY:minioadmin}"

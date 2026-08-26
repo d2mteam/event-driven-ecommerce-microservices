@@ -1,4 +1,9 @@
 spring:
+  # Virtual thread: mỗi request một thread ảo thay cho pool cố định.
+  # Hợp vì service ở đây chủ yếu chờ I/O (DB, HTTP, Kafka) chứ không tính toán.
+  threads:
+    virtual:
+      enabled: true
   application:
     name: inventory-service
   datasource:

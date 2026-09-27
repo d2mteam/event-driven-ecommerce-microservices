@@ -12,6 +12,7 @@ Project tập trung vào các bài toán backend phân tán thay vì số lượ
 * Transactional Outbox với concurrent relay
 * At-least-once delivery và idempotency
 * Per-key event ordering
+* Deadline propagation giữa reservation và payment
 * Pessimistic locking để chống oversell
 * Presigned upload, SSE và batch processing
 
@@ -52,7 +53,7 @@ Hệ thống sử dụng hai kiểu giao tiếp:
 * **HTTP** cho các truy vấn cần kết quả ngay, chẳng hạn Order lấy giá từ Product hoặc yêu cầu Inventory giữ hàng.
 * **Kafka** cho các thay đổi trạng thái đã xảy ra và cần được các service khác phản ứng bất đồng bộ.
 
-Mỗi service sở hữu dữ liệu của mình. Không có transaction phân tán hay 2PC giữa các service.
+Mỗi service chỉ đọc/ghi bảng của mình; cần dữ liệu của service khác thì gọi HTTP hoặc nghe event. Bản demo dùng chung một MariaDB (`ecommerce_db`), tách theo bảng. Không có transaction phân tán hay 2PC giữa các service.
 
 ---
 
@@ -74,6 +75,11 @@ sequenceDiagram
     I-->>O: Reservation
     O-->>C: PENDING_PAYMENT
 
+    C->>O: Create payment
+    O->>P: Create payment + deadline
+    P-->>O: Payment
+    O-->>C: Payment
+
     C->>P: Pay order
     P->>K: PAYMENT_SUCCEEDED
 
@@ -89,6 +95,31 @@ sequenceDiagram
 Tồn kho được **reserve** trước khi thanh toán và chỉ được finalize sau khi đơn được xác nhận.
 
 Reservation có thời hạn. Nếu khách không hoàn tất thanh toán, reservation được giải phóng và Order chuyển sang trạng thái thất bại.
+
+## Payment deadline
+
+Reservation và payment đều có thời hạn, nhưng tính từ hai mốc khác nhau:
+
+```text
+reservation   30m kể từ lúc tạo order
+payment       15m kể từ lúc tạo payment
+```
+
+Nếu hai hạn này độc lập, payment có thể sống lâu hơn reservation: khách vẫn trả được tiền sau khi hàng đã được nhả và Order đã `FAILED`.
+
+Deadline vì vậy được truyền theo chuỗi gọi, Inventory là nguồn duy nhất:
+
+```text
+Inventory ── reservation.expiresAt = T ────► Order
+Order     ── deadline = T − margin ─────────► Payment
+Payment   ── expiresAt = min(now + ttl, deadline)
+```
+
+* Payment luôn hết hạn trước reservation ít nhất một `margin` (mặc định 2m), đủ để một payment thành công sát giờ kịp đi qua outbox tới Order và Inventory. Hết hạn thì đi theo luồng `PAYMENT_EXPIRED` có sẵn.
+* Còn ít hơn một `margin` để trả tiền thì Order từ chối tạo payment (`409`).
+* Order đã `CONFIRMED` không bao giờ bị chuyển sang `FAILED` khi reservation hết hạn; trường hợp lệch này đi vào DLT như một cảnh báo.
+
+Deadline được truyền dưới dạng mốc thời gian tuyệt đối, nên độ trễ giữa các lần gọi không làm lệch hạn.
 
 ---
 
@@ -180,7 +211,7 @@ sequenceDiagram
     participant B as Worker B
 
     A->>DB: Claim (token = aaa)
-    A--xA: Crash
+    Note over A: Stall > lease (GC pause, DB chậm)
 
     Note over DB: Lease expires
 
@@ -198,6 +229,8 @@ WHERE lock_token = ?
 ```
 
 `locked_until` cho phép **recovery**, còn `lock_token` hoạt động như một **fencing token**, ngăn worker cũ cập nhật state sau khi quyền sở hữu đã được chuyển cho worker khác.
+
+Worker crash thì mất luôn token (token chỉ nằm trong bộ nhớ của lần chạy đó); thứ fencing token chặn là worker **còn sống nhưng bị treo** quá lease rồi chạy tiếp.
 
 ---
 
@@ -261,16 +294,17 @@ duplicate có thể xảy ra
 consumer phải idempotent
 ```
 
-Kafka consumer sử dụng domain state để nhận biết replay.
+Các consumer đổi state (Order, Inventory, Payment) dùng domain state để nhận biết replay; notification history upsert theo `orderId`. Riêng consumer gửi email không dedupe, event trùng có thể gửi trùng email.
 
 Ví dụ:
 
 ```text
 PAYMENT_SUCCEEDED
         ↓
-Order đã CONFIRMED?
-        ├── yes → duplicate, ignore
-        └── no  → apply transition
+Order đang ở state nào?
+        ├── CONFIRMED       → duplicate, ignore
+        ├── PENDING_PAYMENT → apply transition
+        └── state khác      → reject (non-retryable → DLT)
 ```
 
 Không cần Inbox table đối với các state transition vốn đã idempotent tự nhiên.
@@ -291,8 +325,11 @@ Kết quả:
 key mới
 → tạo order
 
-key cũ + cùng request hash
+key cũ + cùng request hash + đã COMPLETED
 → trả lại order đã tạo
+
+key cũ + cùng request hash + PROCESSING / FAILED
+→ 409 conflict (request đã lỗi thì phải dùng key mới)
 
 key cũ + khác request hash
 → reject conflict
@@ -326,11 +363,13 @@ Ordering chỉ được áp dụng **theo `message_key`**, không phải toàn h
 
 Nếu publish Kafka thất bại, relay lên lịch retry.
 
-Sau khi vượt quá `maxAttempts`, message chuyển sang:
+Order và Payment relay: sau `maxAttempts` lần thất bại (mặc định 10), message chuyển sang:
 
 ```text
 FAILED
 ```
+
+Inventory relay không giới hạn số lần: retry với exponential backoff (tối đa 60s), chỉ chuyển `FAILED` khi gặp lỗi không thể retry (serialization, record quá lớn, sai topic, auth/config).
 
 Outbox table chính là durable store của producer-side failure.
 
@@ -371,7 +410,7 @@ definitely insufficient
 unknown
 ```
 
-Mọi quyết định cuối cùng vẫn được xác nhận dưới database lock, vì vậy stale cache không thể gây oversell.
+Chỉ database (dưới lock) mới quyết định cho giữ hàng; cache chỉ có thể từ chối sớm. Vì vậy stale cache không thể gây oversell, tệ nhất là từ chối nhầm cho tới lần refresh kế tiếp hoặc hết TTL (mặc định 60s).
 
 ---
 
@@ -426,6 +465,8 @@ User Service giữ private key và chịu trách nhiệm phát token.
 
 # API overview
 
+Path public/admin đều có prefix `/api` (vd `/api/auth/*`, `/api/admin/products/*`); `/internal/*` thì không.
+
 ### Public
 
 ```text
@@ -453,7 +494,7 @@ User Service giữ private key và chịu trách nhiệm phát token.
 /internal/*
 ```
 
-Dùng cho service-to-service calls như batch product lookup, inventory reservation và batch user-email lookup.
+Dùng cho service-to-service calls như inventory reservation, tạo payment (`/internal/payments`), batch inventory lookup và batch user-email lookup. Riêng batch product lookup của Order gọi thẳng `POST /api/products/batch` (gateway chỉ route `GET` cho products nên endpoint này không lộ ra ngoài).
 
 ---
 

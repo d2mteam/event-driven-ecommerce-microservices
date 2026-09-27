@@ -6,7 +6,7 @@ Hệ thống thương mại điện tử theo kiến trúc microservices, tập 
 
 **Java 21 · Spring Boot 3.5 · Kafka · MariaDB · Redis · MinIO**
 
-Project tập trung vào các bài toán backend phân tán thay vì số lượng tính năng:
+Các kỹ thuật chính:
 
 * Saga choreography và compensating transaction
 * Transactional Outbox với concurrent relay
@@ -14,7 +14,7 @@ Project tập trung vào các bài toán backend phân tán thay vì số lượ
 * Per-key event ordering
 * Deadline propagation giữa reservation và payment
 * Pessimistic locking để chống oversell
-* Presigned upload, SSE và batch processing
+* Presigned upload, SSE và Kafka batch consumer cho email
 
 ---
 
@@ -115,9 +115,9 @@ Order     ── deadline = T − margin ─────────► Payment
 Payment   ── expiresAt = min(now + ttl, deadline)
 ```
 
-* Payment luôn hết hạn trước reservation ít nhất một `margin` (mặc định 2m), đủ để một payment thành công sát giờ kịp đi qua outbox tới Order và Inventory. Hết hạn thì đi theo luồng `PAYMENT_EXPIRED` có sẵn.
+* `expiresAt` của payment sớm hơn hạn reservation ít nhất một `margin` (mặc định 2m), chừa thời gian cho một payment thành công sát giờ đi qua outbox tới Order và Inventory. Hết hạn thì đi theo luồng `PAYMENT_EXPIRED` có sẵn.
 * Còn ít hơn một `margin` để trả tiền thì Order từ chối tạo payment (`409`).
-* Order đã `CONFIRMED` không bao giờ bị chuyển sang `FAILED` khi reservation hết hạn; trường hợp lệch này đi vào DLT như một cảnh báo.
+* Nếu reservation vẫn hết hạn khi Order đã `CONFIRMED` (đã thu tiền), Order không bị chuyển sang `FAILED`; event `RESERVATION_EXPIRED` đi vào DLT để xử lý tay (lúc đó Inventory đã nhả hàng).
 
 Deadline được truyền dưới dạng mốc thời gian tuyệt đối, nên độ trễ giữa các lần gọi không làm lệch hạn.
 
@@ -211,7 +211,7 @@ sequenceDiagram
     participant B as Worker B
 
     A->>DB: Claim (token = aaa)
-    Note over A: Stall > lease (GC pause, DB chậm)
+    Note over A: Stall > lease
 
     Note over DB: Lease expires
 
@@ -230,7 +230,7 @@ WHERE lock_token = ?
 
 `locked_until` cho phép **recovery**, còn `lock_token` hoạt động như một **fencing token**, ngăn worker cũ cập nhật state sau khi quyền sở hữu đã được chuyển cho worker khác.
 
-Worker crash thì mất luôn token (token chỉ nằm trong bộ nhớ của lần chạy đó); thứ fencing token chặn là worker **còn sống nhưng bị treo** quá lease rồi chạy tiếp.
+Worker crash thì mất luôn token (token chỉ nằm trong bộ nhớ của lần chạy đó); thứ fencing token chặn là worker **còn sống nhưng bị treo** quá lease rồi chạy tiếp: update của nó vào outbox trúng 0 row, còn message nó gửi lên Kafka vẫn đi và thành bản trùng.
 
 ---
 
@@ -294,7 +294,7 @@ duplicate có thể xảy ra
 consumer phải idempotent
 ```
 
-Các consumer đổi state (Order, Inventory, Payment) dùng domain state để nhận biết replay; notification history upsert theo `orderId`. Riêng consumer gửi email không dedupe, event trùng có thể gửi trùng email.
+Các consumer đổi state (Order, Inventory, Payment) dùng domain state để nhận biết replay; notification history upsert theo `orderId`. Riêng consumer gửi email là best-effort: không dedupe (event trùng thì gửi trùng mail), và lô chạy quá `window` (mặc định 30s) vẫn commit offset dù mail chưa gửi xong.
 
 Ví dụ:
 
@@ -307,7 +307,7 @@ Order đang ở state nào?
         └── state khác      → reject (non-retryable → DLT)
 ```
 
-Không cần Inbox table đối với các state transition vốn đã idempotent tự nhiên.
+Project không dùng Inbox table; dedupe dựa trên state hiện tại như sơ đồ trên.
 
 ### HTTP idempotency
 
@@ -341,9 +341,9 @@ Request hash ngăn cùng một key bị tái sử dụng cho hai ý định nghi
 
 ## Per-key event ordering
 
-Kafka chỉ đảm bảo ordering trong phạm vi partition.
+Key Kafka là `orderId`, nên event của cùng một order vào cùng partition và giữ thứ tự ở đó.
 
-Project bổ sung ordering ngay tại Outbox Relay:
+Thứ tự có thể lệch ở phía relay: message trước gửi lỗi, chờ retry, trong lúc đó message sau đã được gửi đi. Order và Payment relay chặn việc này ngay trong claim query:
 
 ```text
 order-42
@@ -494,7 +494,7 @@ Path public/admin đều có prefix `/api` (vd `/api/auth/*`, `/api/admin/produc
 /internal/*
 ```
 
-Dùng cho service-to-service calls như inventory reservation, tạo payment (`/internal/payments`), batch inventory lookup và batch user-email lookup. Riêng batch product lookup của Order gọi thẳng `POST /api/products/batch` (gateway chỉ route `GET` cho products nên endpoint này không lộ ra ngoài).
+Dùng cho service-to-service calls như inventory reservation, tạo payment (`/internal/payments`), batch inventory lookup và batch user-email lookup. Riêng batch product lookup của Order gọi thẳng `POST /api/products/batch` (gateway chỉ route `GET` cho products nên endpoint này không gọi được qua gateway).
 
 ---
 

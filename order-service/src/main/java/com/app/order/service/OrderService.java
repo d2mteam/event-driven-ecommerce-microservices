@@ -61,6 +61,7 @@ public class OrderService {
                 .id(orderId)
                 .userId(userId)
                 .reservationId(reservation.reservationId())
+                .reservationExpiresAt(reservation.expiresAt())
                 .status(OrderStatus.PENDING_PAYMENT)
                 .totalPrice(calculateTotal(orderItems))
                 .items(orderItems)

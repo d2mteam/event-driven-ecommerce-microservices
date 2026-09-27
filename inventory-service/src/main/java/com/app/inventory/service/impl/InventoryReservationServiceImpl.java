@@ -173,7 +173,10 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
                     "Reservation does not belong to the event order"
             );
         }
-        if (reservation.getStatus() == ReservationStatus.RELEASED) {
+        // EXPIRED: sweeper đã nhả hàng rồi mới báo order, nên ORDER_FAILED tới
+        // sau là bước bình thường của saga chứ không phải xung đột.
+        if (reservation.getStatus() == ReservationStatus.RELEASED
+                || reservation.getStatus() == ReservationStatus.EXPIRED) {
             return;
         }
         if (!reservation.isHeld()) {

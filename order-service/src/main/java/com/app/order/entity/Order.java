@@ -66,6 +66,9 @@ public class Order {
     @Column(nullable = false)
     private Long reservationId;
 
+    /** Hạn giữ hàng do inventory trả về; null với đơn tạo trước khi có cột này. */
+    private Instant reservationExpiresAt;
+
     @Enumerated(EnumType.STRING)
     @Column(columnDefinition = "varchar(64)")
     private OrderFailureReason failureReason;
@@ -102,8 +105,9 @@ public class Order {
         if (!Objects.equals(reservationId, expiredReservationId)) {
             return false;
         }
-        if (status != OrderStatus.PENDING_PAYMENT
-                && status != OrderStatus.CONFIRMED) {
+        // Đơn đã CONFIRMED là đã thu tiền: không được lặng lẽ đánh FAILED.
+        // Trả false để event rơi vào DLT như một báo động.
+        if (status != OrderStatus.PENDING_PAYMENT) {
             return false;
         }
 

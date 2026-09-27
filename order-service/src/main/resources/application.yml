@@ -44,6 +44,8 @@ app:
     payment-base-url: "${PAYMENT_SERVICE_BASE_URL:http://localhost:8086}"
     connect-timeout: "${SERVICE_CONNECT_TIMEOUT:2s}"
     read-timeout: "${SERVICE_READ_TIMEOUT:5s}"
+  payment:
+    deadline-margin: "${PAYMENT_DEADLINE_MARGIN:2m}"
   kafka:
     consumer-group-id: "${ORDER_KAFKA_GROUP_ID:order-service}"
     topics:

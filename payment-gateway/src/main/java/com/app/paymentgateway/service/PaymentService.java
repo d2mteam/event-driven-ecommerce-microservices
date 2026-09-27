@@ -62,12 +62,16 @@ public class PaymentService {
         }
 
         Instant createdAt = Instant.now();
+        Instant expiresAt = createdAt.plus(paymentProperties.ttl());
+        if (request.deadline() != null && request.deadline().isBefore(expiresAt)) {
+            expiresAt = request.deadline();
+        }
         Payment payment = Payment.pending(
                 request.orderId(),
                 request.amount(),
                 paymentProvider.type(),
                 createdAt,
-                createdAt.plus(paymentProperties.ttl())
+                expiresAt
         );
 
         try {

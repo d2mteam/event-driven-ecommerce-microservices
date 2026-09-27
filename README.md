@@ -12,8 +12,8 @@ Các kỹ thuật chính:
 * Transactional Outbox với concurrent relay
 * At-least-once delivery và idempotency
 * Per-key event ordering
-* Deadline propagation giữa reservation và payment
 * Pessimistic locking để chống oversell
+* Full-text search trên MariaDB, không dùng Elasticsearch
 * Presigned upload, SSE và Kafka batch consumer cho email
 
 ---
@@ -76,7 +76,7 @@ sequenceDiagram
     O-->>C: PENDING_PAYMENT
 
     C->>O: Create payment
-    O->>P: Create payment + deadline
+    O->>P: Create payment
     P-->>O: Payment
     O-->>C: Payment
 
@@ -94,32 +94,7 @@ sequenceDiagram
 
 Tồn kho được **reserve** trước khi thanh toán và chỉ được finalize sau khi đơn được xác nhận.
 
-Reservation có thời hạn. Nếu khách không hoàn tất thanh toán, reservation được giải phóng và Order chuyển sang trạng thái thất bại.
-
-## Payment deadline
-
-Reservation và payment đều có thời hạn, nhưng tính từ hai mốc khác nhau:
-
-```text
-reservation   30m kể từ lúc tạo order
-payment       15m kể từ lúc tạo payment
-```
-
-Nếu hai hạn này độc lập, payment có thể sống lâu hơn reservation: khách vẫn trả được tiền sau khi hàng đã được nhả và Order đã `FAILED`.
-
-Deadline vì vậy được truyền theo chuỗi gọi, Inventory là nguồn duy nhất:
-
-```text
-Inventory ── reservation.expiresAt = T ────► Order
-Order     ── deadline = T − margin ─────────► Payment
-Payment   ── expiresAt = min(now + ttl, deadline)
-```
-
-* `expiresAt` của payment sớm hơn hạn reservation ít nhất một `margin` (mặc định 2m), chừa thời gian cho một payment thành công sát giờ đi qua outbox tới Order và Inventory. Hết hạn thì đi theo luồng `PAYMENT_EXPIRED` có sẵn.
-* Còn ít hơn một `margin` để trả tiền thì Order từ chối tạo payment (`409`).
-* Nếu reservation vẫn hết hạn khi Order đã `CONFIRMED` (đã thu tiền), Order không bị chuyển sang `FAILED`; event `RESERVATION_EXPIRED` đi vào DLT để xử lý tay (lúc đó Inventory đã nhả hàng).
-
-Deadline được truyền dưới dạng mốc thời gian tuyệt đối, nên độ trễ giữa các lần gọi không làm lệch hạn.
+Reservation có thời hạn. Nếu khách không hoàn tất thanh toán, reservation được giải phóng và Order chuyển sang trạng thái thất bại. Hạn của payment được cắt theo hạn giữ hàng, để payment hết hạn trước khi hàng bị nhả.
 
 ---
 
@@ -411,6 +386,49 @@ unknown
 ```
 
 Chỉ database (dưới lock) mới quyết định cho giữ hàng; cache chỉ có thể từ chối sớm. Vì vậy stale cache không thể gây oversell, tệ nhất là từ chối nhầm cho tới lần refresh kế tiếp hoặc hết TTL (mặc định 60s).
+
+---
+
+## Product search
+
+```text
+GET /api/products/search?name=&categoryId=&page=&size=&sort=
+```
+
+API tìm product đang bán theo tên và/hoặc category, trả kết quả phân trang kèm ảnh. Search theo tên chạy trên **FULLTEXT index** của MariaDB và được thiết kế cho **search-as-you-type**:
+
+* **Khớp theo tiền tố**: từ đang gõ dở vẫn khớp (`iph` → iPhone).
+* **Mọi từ đều bắt buộc (AND)**: thêm từ thì kết quả thu hẹp lại.
+* **Từ ngắn và stopword vẫn tìm được** (vd `m4`), vì MariaDB được cấu hình index cả những từ này.
+* **Input được làm sạch**: ký tự đặc biệt bị bỏ khi tách từ; từ khoá rỗng thì không lọc theo tên.
+
+```text
+"macbook ai"  →  +macbook* +ai*
+```
+
+```sql
+select product.*
+from products product
+where (:status is null or product.status = :status)
+  and (
+      :name is null
+      or match(product.name) against (:name in boolean mode)
+  )
+  and (:categoryId is null or product.category_id = :categoryId)
+-- khi có từ khoá
+order by match(product.name) against (:name in boolean mode) desc,
+         product.id
+```
+
+Thứ tự kết quả:
+
+* có từ khoá: theo độ liên quan;
+* không có từ khoá: theo `sort` truyền vào;
+* luôn kèm `id` làm tie-breaker để phân trang ổn định.
+
+Index nằm trên chính bảng `products`, nên thay đổi của product có hiệu lực với search ngay sau commit. Danh sách product của admin dùng cùng cơ chế.
+
+Chưa dùng Elasticsearch vì project chưa cần các tính năng nâng cao (fuzzy match, synonym...) và chưa mở rộng tới quy mô cần một search engine riêng.
 
 ---
 

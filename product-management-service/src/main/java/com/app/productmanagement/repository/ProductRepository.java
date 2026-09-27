@@ -37,7 +37,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                     where (:status is null or product.status = :status)
                       and (
                           :name is null
-                          or match(product.name) against (:name in natural language mode)
+                          or match(product.name) against (:name in boolean mode)
                       )
                       and (:categoryId is null or product.category_id = :categoryId)
                     """,
@@ -47,7 +47,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                     where (:status is null or product.status = :status)
                       and (
                           :name is null
-                          or match(product.name) against (:name in natural language mode)
+                          or match(product.name) against (:name in boolean mode)
                       )
                       and (:categoryId is null or product.category_id = :categoryId)
                     """,

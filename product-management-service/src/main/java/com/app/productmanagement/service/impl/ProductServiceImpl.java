@@ -31,10 +31,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -48,6 +51,7 @@ public class ProductServiceImpl implements ProductService {
             "price",
             "status"
     );
+    private static final Pattern NON_WORD = Pattern.compile("[^\\p{L}\\p{M}\\p{N}_]+");
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
@@ -94,9 +98,9 @@ public class ProductServiceImpl implements ProductService {
             Long categoryId,
             Pageable pageable
     ) {
-        String normalizedName = normalizeFilter(name);
+        String nameQuery = toFulltextQuery(name);
         Sort searchSort;
-        if (normalizedName == null) {
+        if (nameQuery == null) {
             searchSort = pageable.getSort().isUnsorted()
                     ? Sort.by("id")
                     : pageable.getSort();
@@ -108,7 +112,7 @@ public class ProductServiceImpl implements ProductService {
         } else {
             searchSort = JpaSort.unsafe(
                         Sort.Direction.DESC,
-                        "match(product.name) against (:name in natural language mode)"
+                        "match(product.name) against (:name in boolean mode)"
                 ).and(Sort.by("id"));
         }
         Pageable searchPageable = PageRequest.of(
@@ -119,7 +123,7 @@ public class ProductServiceImpl implements ProductService {
         Page<ProductResponse> products = productRepository
                 .findProducts(
                         ProductStatus.ACTIVE.name(),
-                        normalizedName,
+                        nameQuery,
                         categoryId,
                         searchPageable
                 )
@@ -165,11 +169,10 @@ public class ProductServiceImpl implements ProductService {
                 stableSort
         );
 
-        String normalizedName = normalizeFilter(name);
         Page<ProductResponse> products = productRepository
                 .findProducts(
                         status == null ? null : status.name(),
-                        normalizedName,
+                        toFulltextQuery(name),
                         categoryId,
                         stablePageable
                 )
@@ -249,12 +252,27 @@ public class ProductServiceImpl implements ProductService {
                 response.setImageUrls(urlsByProductId.getOrDefault(response.getId(), List.of())));
     }
 
-    private static String normalizeFilter(String value) {
+    /**
+     * Đổi từ khoá thành cú pháp boolean mode: mỗi từ thành {@code +từ*}, tức là
+     * phải có đủ mọi từ (AND) và từ nào cũng khớp theo tiền tố, để gõ dở
+     * "iph" vẫn ra iPhone còn "macbook air" không ra nồi chiên "Air Fryer".
+     *
+     * <p>Cắt theo mọi ký tự không phải chữ/số, giống cách index tách từ, nên
+     * người dùng không gõ được toán tử ({@code usb-c} không thành "usb, trừ c").
+     * Không còn từ nào thì trả null: không lọc theo tên.
+     *
+     * <p>Từ nào không có trong index thì cả câu ra 0, nên MariaDB phải index cả
+     * từ 2 ký tự và stopword (docker-compose/mariadb-config/91-fulltext.cnf).
+     */
+    private static String toFulltextQuery(String value) {
         if (value == null) {
             return null;
         }
-        String normalized = value.strip();
-        return normalized.isEmpty() ? null : normalized;
+        String query = Arrays.stream(NON_WORD.split(value))
+                .filter(word -> !word.isEmpty())
+                .map(word -> "+" + word + "*")
+                .collect(Collectors.joining(" "));
+        return query.isEmpty() ? null : query;
     }
 
     private Category getActiveCategory(Long id) {

@@ -1,0 +1,9 @@
+[mariadb]
+# FULLTEXT index products.name: search bắt mọi từ phải khớp (AND), nên từ nào
+# không vào index ("m4", "tv", "for"...) là cả câu ra 0. Mặc định InnoDB bỏ từ
+# dưới 3 ký tự và bỏ stopword tiếng Anh.
+# Đổi hai giá trị này phải restart MariaDB rồi dựng lại index đã có:
+#   ALTER TABLE products DROP INDEX ft_products_name,
+#     ADD FULLTEXT INDEX ft_products_name (name);
+innodb_ft_min_token_size=2
+innodb_ft_enable_stopword=0
